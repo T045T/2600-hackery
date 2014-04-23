@@ -167,6 +167,7 @@ CheckVblankEnd
   
   ; WSYNC the final line of VBLANK, then set VBLANK to 0 (accumulator is 0 because the bne above wasn't taken)
   sta WSYNC
+  sta RESP0
   sta VBLANK
   
 .loop:
@@ -182,7 +183,6 @@ CheckVblankEnd
 
   ldx scanline
 
-  sta RESP0
 
   ;draw player
   txa
