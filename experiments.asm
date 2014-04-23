@@ -82,6 +82,10 @@ memclear:
   ; set controller DDR as input
   lda #$00
   sta SWACNT
+  
+  ; initialize y offset
+  lda #191
+  sta yoff
 
   ; playfield setup
   lda #$84
@@ -141,11 +145,17 @@ memclear:
   lda #%00100000
   bit SWCHA
   bne .notdown
+  lda yoff
+  cmp #14
+  beq .notdown ; don't move past the lower edge of the screen
   dec yoff
 .notdown:
   lda #%00010000
   bit SWCHA
   bne .notup
+  lda yoff
+  cmp #191
+  beq .notup ; don't move past the upper edge of the screen (into vblank territory)
   inc yoff
 .notup:
 
@@ -162,19 +172,18 @@ CheckVblankEnd
   bne CheckVblankEnd
   
   
-  ldy #0
-  ldx #255
+  ldy #0   ; lines of player sprite drawn
+  ldx #191 ; 191 scan lines until overscan
+  stx scanline
   
   ; WSYNC the final line of VBLANK, then set VBLANK to 0 (accumulator is 0 because the bne above wasn't taken)
   sta WSYNC
   sta RESP0
   sta VBLANK
   
-.loop:
-  stx scanline
+.line_loop:
 
-
-  ldx xoff
+;  ldx xoff
 .sleeploop:
 ;    SLEEP 20
 ;    dex
@@ -183,14 +192,15 @@ CheckVblankEnd
 
   ldx scanline
 
-
   ;draw player
-  txa
-  sbc yoff
-  bpl .noplayer
-  lda yoff
-  sbc #14
-  bpl .noplayer
+  cpx yoff ; compare current scanline to yoff
+;            will set N, Z and C status bits as per http://www.6502.org/tutorials/compare_instructions.html
+  beq .check_lines_drawn
+  bcs .noplayer ; if carry is set, x (the current scanline) is greater than (or equal to, but the last line took care of that)
+;                 yoff, so don't draw player sprite yet
+.check_lines_drawn:
+  cpy #15
+  bcs .noplayer ; carry set means Y >= 15 => Y > 14 (i.e. we've already drawn all 14 lines of player sprite)
   ; we have to draw a sprite
   lda (<sprite),y
   iny
@@ -200,16 +210,26 @@ CheckVblankEnd
   lda #0
   sta GRP0
 .player_done:
-  dex
+  dex ; count down lines until overscan
+  stx scanline
   sta WSYNC
 
   cpx #0
-  bne .loop
+  bne .line_loop
   lda #2
 
 
-  sta VSYNC
-;  sta VBLANK
+  sta WSYNC
+  sta VBLANK
+  ldx #30
+  lda #0
+  sta GRP0
+Wait_Overscan
+  sta WSYNC
+  dex
+  bne Wait_Overscan
+  
+  
   jmp .new_frame
   ;//////
 
