@@ -99,8 +99,33 @@ memclear:
 
   ;//////
 .new_frame:
-  ldy #0
-  ldx #255
+
+  ; VSYNC! 1, 2, 3!
+  lda #2
+  sta VSYNC
+  sta WSYNC
+  sta WSYNC
+  sta WSYNC
+  
+  ; set timer for the end of VBLANK
+  ; TIM64T ticks once every 64 cycles
+  ; VBLANK is 37 scan lines, 76 cycles (228 color cycles) per scan line
+  ;
+  ; 37*76 = 2812
+  ;
+  ; But we need to take into account the loop itself takes about 6 cycles, 
+  ; setting the timer takes 5, and setting WSYNC 3.
+  ; => Wait for 2812 - 6 - 5 - 3 = 2798 / 63 => 43 timer ticks, then set WSYNC
+  lda #43
+  sta TIM64T
+  
+  ; unset VSYNC here so we don't need to subtract another number from the timer count ;)
+  lda #0
+  sta VSYNC
+  
+
+  
+  
 
   ; read controller status
   lda #%10000000
@@ -131,6 +156,19 @@ memclear:
   sta WSYNC
   sta WSYNC
 
+; Twiddle thumbs until end of VBLANK period
+CheckVblankEnd
+  lda INTIM
+  bne CheckVblankEnd
+  
+  
+  ldy #0
+  ldx #255
+  
+  ; WSYNC the final line of VBLANK, then set VBLANK to 0 (accumulator is 0 because the bne above wasn't taken)
+  sta WSYNC
+  sta VBLANK
+  
 .loop:
   stx scanline
 
@@ -168,12 +206,8 @@ memclear:
   cpx #0
   bne .loop
   lda #2
-;  sta VBLANK
-  sta VSYNC
-  sta WSYNC
-  sta WSYNC
-  sta WSYNC
-  lda #0
+
+
   sta VSYNC
 ;  sta VBLANK
   jmp .new_frame
