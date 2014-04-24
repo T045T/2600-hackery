@@ -125,15 +125,15 @@ MainLoop
 
 	LDA #%00010000	;Down?
 	BIT SWCHA 
-	BNE SkipMoveDown
+	BNE P0SkipMoveDown
 	INC P0YPosFromBot
-SkipMoveDown
+P0SkipMoveDown
 
 	LDA #%00100000	;Up?
 	BIT SWCHA 
-	BNE SkipMoveUp
+	BNE P0SkipMoveUp
 	DEC P0YPosFromBot
-SkipMoveUp
+P0SkipMoveUp
 
 ; for left and right, we're gonna 
 ; set the horizontal speed, and then do
@@ -147,15 +147,15 @@ SkipMoveUp
 
 	LDA #%01000000	;Left?
 	BIT SWCHA 
-	BNE SkipMoveLeft
+	BNE P0SkipMoveLeft
 	LDX #$10	;a 1 in the left nibble means go left
-SkipMoveLeft
+P0SkipMoveLeft
 	
 	LDA #%10000000	;Right?
 	BIT SWCHA 
-	BNE SkipMoveRight
+	BNE P0SkipMoveRight
 	LDX #$F0	;a -1 in the left nibble means go right...
-SkipMoveRight
+P0SkipMoveRight
 			;(in 4 bits, using "two's complement 
 			; notation", binary 1111 = decimal -1
 			; (which we write there as hex F --
@@ -165,6 +165,50 @@ SkipMoveRight
 	STX HMP0	;set the move for Player 0
 	STX HMM0	; ... and Missile (sword) 0
 
+
+	;; Now, check P1
+	
+	LDA #%00000001	;Down?
+	BIT SWCHA 
+	BNE P1SkipMoveDown
+	INC P1YPosFromBot
+P1SkipMoveDown
+
+	LDA #%00000010	;Up?
+	BIT SWCHA 
+	BNE P1SkipMoveUp
+	DEC P1YPosFromBot
+P1SkipMoveUp
+
+; for left and right, we're gonna 
+; set the horizontal speed, and then do
+; a single HMOVE.  We'll use X to hold the
+; horizontal speed, then store it in the 
+; appropriate register
+
+
+;assume horiz speed will be zero
+	LDX #0	
+
+	LDA #%00000100	;Left?
+	BIT SWCHA 
+	BNE P1SkipMoveLeft
+	LDX #$10	;a 1 in the left nibble means go left
+P1SkipMoveLeft
+	
+	LDA #%00001000	;Right?
+	BIT SWCHA 
+	BNE P1SkipMoveRight
+	LDX #$F0	;a -1 in the left nibble means go right...
+P1SkipMoveRight
+			;(in 4 bits, using "two's complement 
+			; notation", binary 1111 = decimal -1
+			; (which we write there as hex F --
+			; confused?))
+
+
+	STX HMP1	;set the move for Player 0
+	STX HMM1	; ... and Missile (sword) 0
 
 ; while we're at it, change the color of the background
 ; if the button is pressed (making sure D6 of VBLANK has
