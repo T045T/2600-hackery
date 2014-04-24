@@ -82,8 +82,6 @@ ClearMem
 ;; 	;; makes 68. This means we're at color clock 68*3 = 204
 ;; 	STA RESM1
 ;; 	STA RESP1		;Reset Player 1 too, close to the right edge
- 	LDA #8
- 	STA REFP1		; Reflect Player 1 so that the sprite points left
 	
 	LDA #%10000000		; Reset P0
 	STA P0Status
@@ -211,15 +209,41 @@ P1SkipMoveRight
 
 	LDA INPT4		;read button input
 	BMI ButtonNotPressed	;skip if button not pressed
-	LDA P0YPosFromBot		;must be pressed, get YPos
-	STA COLUBK		;load into bgcolor
+	LDA #%00010000
+	BIT P0Status
+	BNE IsMid
+	LDA #%00100000
+	BIT P0Status
+	BNE IsHigh
+IsLow				; Go from low to mid...
+	LDA P0Status
+	AND #%11001111
+	ADC #%00010000
+	JMP ChangedStance
+IsMid				; From mid to high...
+	LDA P0Status
+	AND #%11001111
+	ADC #%00100000
+
+	JMP ChangedStance
+IsHigh				; And back to low.
+	LDA P0Status
+	AND #%11001111
+	ADC #%00000000
+ChangedStance
+	STA P0Status
+	;; LDA P0YPosFromBot		;must be pressed, get YPos
+	;; STA COLUBK		;load into bgcolor
 ButtonNotPressed
 
 	STA WSYNC	
 	STA HMOVE 	
 
 CheckPlayerStatus
-
+	LDA P0Status		; Set reflection bit for both players according to their status byte
+	STA REFP0		
+	LDA P1Status
+	STA REFP1
 P0PosStart
 	LDA #%00010000
 	BIT P0Status
