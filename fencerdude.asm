@@ -5,7 +5,7 @@
 	org $F000
 
 LowSwordOffset = 6
-MediumSwordOffset = 9
+MidSwordOffset = 9
 HighSwordOffset = 13
 	
 P0YPosFromBot = $80;
@@ -30,6 +30,18 @@ P1ArrowPos = $8E
 
 P0Sprite = $8F
 P1Sprite = $91
+
+P0Status = $93 		; Left nibble (D4-D7) is P0, right (D0-D3) P1
+	;;  D1D0 : Current animation frame (4 frames each) - always back to 0 for standing, make sword shorter for the other frames
+	;;  D2   : Jumping?
+	;;  D3 : 0 if facing right, 1 if left (aligned to simply dump P0Status into REFP0)
+	;;  D5D4 : Counter for stance:
+	;;   0 0 : Low - if Jumping, DIVE!
+	;;   0 1 : Med - if Jumping, KICK!
+	;;   1 0 : High
+	;;  D6: SwordThrown (if 1, don't touch P0MissileLine or HMM0 for Joystick events, sword is taken care of by physics - haha, like we have physics)
+	;;  D7: ResetPlayer (if 1, reset Player to his edge of the screen)
+P1Status = $94
 	
 ;generic start up stuff...
 Start
@@ -58,52 +70,26 @@ ClearMem
 	STA NUSIZ1	; Missile is 8 color clocks wide, player normal
 
 	; Reset Player and missile position
-	LDX #12
-	STA WSYNC
-	STA RESP0 		; (4) Player 0 to left edge of screen
+;; 	LDX #12
+;; 	STA WSYNC
+;; 	STA RESP0 		; (4) Player 0 to left edge of screen
 
-P1Reset
-	DEX			; 2
-	BNE P1Reset		; 2 (3)
-	NOP
-	;; The Loop above should take 13*5 - 1 = 64 cycles, plus the 4 from RESP0
-	;; makes 68. This means we're at color clock 68*3 = 204
-	STA RESM1
-	STA RESP1		;Reset Player 1 too, close to the right edge
-	LDA #8
-	STA REFP1		; Reflect Player 1 so that the sprite points left
+;; P1Reset
+;; 	DEX			; 2
+;; 	BNE P1Reset		; 2 (3)
+;; 	NOP
+;; 	;; The Loop above should take 13*5 - 1 = 64 cycles, plus the 4 from RESP0
+;; 	;; makes 68. This means we're at color clock 68*3 = 204
+;; 	STA RESM1
+;; 	STA RESP1		;Reset Player 1 too, close to the right edge
+ 	LDA #8
+ 	STA REFP1		; Reflect Player 1 so that the sprite points left
 	
-	STA WSYNC
+	LDA #%10000000		; Reset P0
+	STA P0Status
+	LDA #%10001000		; Reset P1, and have him reflected
+	STA P1Status
 	
-	LDA #2
-	STA RESMP0		; Player 0 missile (sword) on top of Player 0
-	;; STA RESMP1		; Player 1 missile (sword) on top of Player 1
-	LDA #0
-	STA RESMP0		; Activate missile graphic
-	;; STA RESMP1		; Activate missile graphic
-
-	
-	LDA #$C0
-	STA HMM0
-	LDA #$D0
-	STA HMM1
-	LDA #$F0
-	STA HMP1
-	STA WSYNC
-	STA HMOVE
-	
-	LDA #<FencerLow
-	STA P0Sprite
-	STA P1Sprite
-	LDA #>FencerLow
-	STA P0Sprite+1
-	STA P1Sprite+1
-	LDA #LowSwordOffset
-	STA P0MissileLine
-	STA P1MissileLine
-	STA WSYNC
-	STA HMCLR
-
 ;VSYNC time
 MainLoop
 	LDA #2
@@ -231,6 +217,168 @@ ButtonNotPressed
 
 	STA WSYNC	
 	STA HMOVE 	
+
+CheckPlayerStatus
+
+P0PosStart
+	LDA #%00010000
+	BIT P0Status
+	BNE P0MidPos
+	LDA #%00100000
+	BIT P0Status
+	BNE P0HighPos
+P0LowPos
+	LDX #<FencerLow
+	STX P0Sprite
+	LDX #>FencerLow
+	STX P0Sprite+1
+	LDX #LowSwordOffset
+	STX P0MissileLine
+	JMP P0PosDone
+P0MidPos
+	LDX #<FencerMid
+	STX P0Sprite
+	LDX #>FencerMid
+	STX P0Sprite+1
+	LDX #MidSwordOffset
+	STX P0MissileLine
+	JMP P0PosDone
+P0HighPos
+	LDX #<FencerHigh
+	STX P0Sprite
+	LDX #>FencerHigh
+	STX P0Sprite+1
+	LDX #HighSwordOffset
+	STX P0MissileLine
+P0PosDone
+	
+P1PosStart
+	LDA #%00010000
+	BIT P1Status
+	BNE P1MidPos
+	LDA #%00100000
+	BIT P1Status
+	BNE P1HighPos
+P1LowPos
+	LDX #<FencerLow
+	STX P1Sprite
+	LDX #>FencerLow
+	STX P1Sprite+1
+	LDX #LowSwordOffset
+	STX P1MissileLine
+	JMP P1PosDone
+P1MidPos
+	LDX #<FencerMid
+	STX P1Sprite
+	LDX #>FencerMid
+	STX P1Sprite+1
+	LDX #MidSwordOffset
+	STX P1MissileLine
+	JMP P1PosDone
+P1HighPos
+	LDX #<FencerHigh
+	STX P1Sprite
+	LDX #>FencerHigh
+	STX P1Sprite+1
+	LDX #HighSwordOffset
+	STX P1MissileLine
+P1PosDone
+
+P0SwordThrown
+P1SwordThrown			;TODO!
+
+P0Reset
+	LDA #%10000000
+	BIT P0Status
+	BEQ P0ResetDone
+	STA WSYNC
+	STA RESP0
+P0ResetDone
+	LDA P0Status
+	AND #%01111111 		; Clear reset bit
+	STA P0Status
+P1Reset
+	LDA #%10000000
+	BIT P0Status
+	BEQ P1ResetDone
+	LDX #12
+	STA WSYNC
+	NOP			; 2
+	NOP			; 2
+P1ResetLoop
+	DEX			; 2
+	BNE P1ResetLoop		; 2 (3)
+P1ResetDone
+	LDA P0Status
+	AND #%11110111		; Clear and write P1 reset bit
+	STA P0Status
+
+	;; Reset the swords every frame to account for possible turning around
+
+P0SwordReset
+	LDA #%01000000
+	BIT P0Status
+	BNE P0SwordSkip		; If sword has been thrown, don't position it with the player
+	STA HMCLR
+	LDX #2
+	STX RESMP0
+	LDA #0
+	STA RESMP0
+	LDA #%00001000
+	BIT P0Status
+	BNE P0Mirrored
+	LDA #$C0
+	JMP P0SwordDone
+P0Mirrored
+	LDA #$70
+	STA HMM0
+	STA WSYNC
+	STA HMOVE
+	LDA #$50
+	LDX #4
+	NOP
+P0HMOVE_Delay			; Don't change HMM0 for at least 24 cycles
+	DEX
+	BNE P0HMOVE_Delay
+P0SwordDone
+	STA HMM0
+	LDA #0
+	STA RESMP0
+P0SwordSkip
+
+P1SwordReset
+	LDA #%01000000
+	BIT P1Status
+	BNE P1SwordSkip		; If sword has been thrown, don't position it with the player
+	LDX #2
+	STX RESMP1
+	LDA #0
+	STA RESMP1
+	LDA #%00001000
+	BIT P1Status
+	BNE P1Mirrored
+	LDA #$C0
+	JMP P1SwordDone
+P1Mirrored
+	LDA #$70
+	STA HMM1
+	STA WSYNC
+	STA HMOVE
+	LDA #$50
+	LDX #4
+P1HMOVE_Delay			; Don't change HMM0 for at least 24 cycles
+	DEX
+	BNE P1HMOVE_Delay
+	LDX #0
+	STX HMM0		; The mirror-HMOVE already applied the HMM0 value calculated above
+P1SwordDone
+	STA HMM1
+	LDA #0
+	STA RESMP1
+P1SwordSkip
+
+	STA WSYNC
+	STA HMOVE
 	
 WaitForVblankEnd
 	LDA INTIM	
@@ -247,23 +395,22 @@ WaitForVblankEnd
 
 
 ScanLoop 
-	STA WSYNC 		; 3
+	STA WSYNC 		; 3 
+
+	STY ENAM0
+	STA ENAM1
+	LDA GRP0Next		; 3
+	STA GRP0		; 3
+	
+	LDA GRP1Next		; 3
+	STA GRP1		; 3
+	;; Total cycles: 27
+	
 	;; Set ScanLoop timer - we just need to make sure
 	;; more than one scanline has passed at the end of the
 	;; kernel, so we don't need more resolution than 64 cycles
 	LDA #2			; 2
-	STA TIM64T 		; 3 
-
-	LDA GRP0Next		; 3
-	STA GRP0		; 3
-	LDA ENAM0Next		; 3
-	STA ENAM0		; 3
-	
-	LDA GRP1Next		; 3
-	STA GRP1		; 3
-	LDA ENAM1Next		; 3
-	STA ENAM1		; 3
-	;; Total cycles: 27
+	STA TIM64T 		; 4
 	
 ; here the idea is that P0LinesLeft
 ; is zero if the line isn't being drawn now,
@@ -320,7 +467,7 @@ IsP1_On
 	LDA (P1Sprite),Y		
 	STA GRP1Next
 	STY P1LinesLeft
-	CPY P1MissileLine 	; X still holds *old* P1LinesLeft, the one for the current line
+	CPY P1MissileLine 	
 	BNE DeactivateSwordP1	; Don't activate Missile Register if not equal
 ActivateSwordP1
 	LDA #2
@@ -335,6 +482,9 @@ FinishP1
 WaitForSecondLine
 	LDA INTIM
 	BNE WaitForSecondLine
+
+	LDA ENAM1Next
+	LDY ENAM0Next
 
 	DEX			; 2
 	BNE ScanLoop		; 2 (3)
