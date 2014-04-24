@@ -335,7 +335,7 @@ WaitForSecondLine
 	LDA #2		
 	STA WSYNC  	
 	STA VBLANK 	
-	LDX #30		
+	LDX #31		
 OverScanWait
 	STA WSYNC
 	DEX
