@@ -46,7 +46,7 @@ ClearMem
 	LDA #$1E
 	STA COLUP1
 ;Setting some variables...
-	LDA #80
+	LDA #40
 	STA P0YPosFromBot	;Initial Y Position
 	STA P1YPosFromBot
 	
@@ -109,6 +109,8 @@ MainLoop
 	LDA #0
 	STA VSYNC 	
 
+	STA CXCLR		; Reset collision registers - for some reason
+				; the missile graphics aren't drawn after they've collided with each other
 
 ;Main Computations; check down, up, left, right
 ;general idea is to do a BIT compare to see if 
@@ -127,13 +129,11 @@ MainLoop
 	BIT SWCHA 
 	BNE SkipMoveDown
 	INC P0YPosFromBot
-	INC P0YPosFromBot
 SkipMoveDown
 
 	LDA #%00100000	;Up?
 	BIT SWCHA 
 	BNE SkipMoveUp
-	DEC P0YPosFromBot
 	DEC P0YPosFromBot
 SkipMoveUp
 
@@ -186,7 +186,7 @@ ButtonNotPressed
 WaitForVblankEnd
 	LDA INTIM	
 	BNE WaitForVblankEnd	
-	LDY #191 	
+	LDY #95 		; Halved because we're now using a two-line kernel
 	STA WSYNC
 	STA VBLANK  	
 
@@ -199,6 +199,11 @@ WaitForVblankEnd
 
 ScanLoop 
 	STA WSYNC 		; 3
+	;; Set ScanLoop timer - we just need to make sure
+	;; more than one scanline has passed at the end of the
+	;; kernel, so we don't need more resolution than 64 cycles
+	LDA #2			; 2
+	STA TIM64T 		; 3 
 
 	LDA GRP0Next		; 3
 	STA GRP0		; 3
@@ -255,7 +260,7 @@ DeactivateSwordP0
 	STA ENAM0Next		; 3
 FinishP0
 
-	;; Total Cycles: 32
+	;; Total Cycles: 34
 
 	;; if P1LinesLeft is non zero,
 	;; we're drawing it
@@ -276,6 +281,11 @@ DeactivateSwordP1
 	LDA #0
 	STA ENAM1Next
 FinishP1
+
+	
+WaitForSecondLine
+	LDA INTIM
+	BNE WaitForSecondLine
 
 	DEY			; 2
 	BNE ScanLoop		; 2 (3)
