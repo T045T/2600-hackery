@@ -269,18 +269,16 @@ ScanLoop
 ; is zero if the line isn't being drawn now,
 ; otherwise it's however many lines we have to go
 
+	LDA #14			; Only need to do this once
 CheckActivateP0
 	CPX P0YPosFromBot	; 3
 	BNE SkipActivateP0	; 2 (3 if taken)
-	LDA #14			; 2
 	STA P0LinesLeft		; 3
 SkipActivateP0
 	;; Total Cycles: 10
-
 CheckActivateP1
 	CPX P1YPosFromBot	; 3
 	BNE SkipActivateP1	; 2 (3)
-	LDA #14			; 2
 	STA P1LinesLeft		; 3
 SkipActivateP1
 
