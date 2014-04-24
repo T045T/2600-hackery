@@ -4,9 +4,9 @@
 	include vcs.h
 	org $F000
 
-LowSwordOffset = 7
-MediumSwordOffset = 7
-HighSwordOffset = 7
+LowSwordOffset = 6
+MediumSwordOffset = 9
+HighSwordOffset = 13
 	
 P0YPosFromBot = $80;
 P0LinesLeft = $81;
@@ -27,6 +27,9 @@ ENAM1Next = $8C
 
 P0ArrowPos = $8D
 P1ArrowPos = $8E
+
+P0Sprite = $8F
+P1Sprite = $91
 	
 ;generic start up stuff...
 Start
@@ -89,11 +92,15 @@ P1Reset
 	STA WSYNC
 	STA HMOVE
 	
-	;; LDA #$F1
-	;; STA GRP1
-	;; LDA #2
-	;; STA ENAM1
-
+	LDA #<FencerLow
+	STA P0Sprite
+	STA P1Sprite
+	LDA #>FencerLow
+	STA P0Sprite+1
+	STA P1Sprite+1
+	LDA #LowSwordOffset
+	STA P0MissileLine
+	STA P1MissileLine
 	STA WSYNC
 	STA HMCLR
 
@@ -228,7 +235,7 @@ ButtonNotPressed
 WaitForVblankEnd
 	LDA INTIM	
 	BNE WaitForVblankEnd	
-	LDY #95 		; Halved because we're now using a two-line kernel
+	LDX #95 		; Halved because we're now using a two-line kernel
 	STA WSYNC
 	STA VBLANK  	
 
@@ -263,7 +270,7 @@ ScanLoop
 ; otherwise it's however many lines we have to go
 
 CheckActivateP0
-	CPY P0YPosFromBot	; 3
+	CPX P0YPosFromBot	; 3
 	BNE SkipActivateP0	; 2 (3 if taken)
 	LDA #14			; 2
 	STA P0LinesLeft		; 3
@@ -271,7 +278,7 @@ SkipActivateP0
 	;; Total Cycles: 10
 
 CheckActivateP1
-	CPY P1YPosFromBot	; 3
+	CPX P1YPosFromBot	; 3
 	BNE SkipActivateP1	; 2 (3)
 	LDA #14			; 2
 	STA P1LinesLeft		; 3
@@ -285,13 +292,14 @@ SkipActivateP1
 	;; if P0LinesLeft is non zero,
 	;; we're drawing it
 
-	LDX P0LinesLeft 	; 3
+	LDY P0LinesLeft 	; 3
 	BEQ FinishP0		; 2 (3 of taken)
-IsP0_On	
-	LDA FencerLow-1,X	; 4 (5 if across page)
+IsP0_On
+	DEY			; 2
+	LDA (P0Sprite),Y	; 5 (6 if across page)
 	STA GRP0Next		; 3
-	DEC P0LinesLeft		; 5
-	CPX #LowSwordOffset 	; 2 - X still holds *old* P0LinesLeft, the one for the current line
+	STY P0LinesLeft		; 3
+	CPY P0MissileLine 	; 3
 	BNE DeactivateSwordP0	; 2 (3 if taken) - Don't activate Missile Register if not equal
 ActivateSwordP0
 	LDA #2			; 2
@@ -307,13 +315,14 @@ FinishP0
 	;; if P1LinesLeft is non zero,
 	;; we're drawing it
 
-	LDX P1LinesLeft 
+	LDY P1LinesLeft 
 	BEQ FinishP1
-IsP1_On	
-	LDA FencerLow-1,X		
+IsP1_On
+	DEY
+	LDA (P1Sprite),Y		
 	STA GRP1Next
-	DEC P1LinesLeft
-	CPX #LowSwordOffset 	; X still holds *old* P1LinesLeft, the one for the current line
+	STY P1LinesLeft
+	CPY P1MissileLine 	; X still holds *old* P1LinesLeft, the one for the current line
 	BNE DeactivateSwordP1	; Don't activate Missile Register if not equal
 ActivateSwordP1
 	LDA #2
@@ -329,16 +338,16 @@ WaitForSecondLine
 	LDA INTIM
 	BNE WaitForSecondLine
 
-	DEY			; 2
+	DEX			; 2
 	BNE ScanLoop		; 2 (3)
 
 	LDA #2		
 	STA WSYNC  	
 	STA VBLANK 	
-	LDX #31		
+	LDY #31		
 OverScanWait
 	STA WSYNC
-	DEX
+	DEY
 	BNE OverScanWait
 	JMP  MainLoop      
 
@@ -353,6 +362,38 @@ FencerLow ; 14 Lines - Upside-Down because it's easier to draw that way
 	.byte %00110010  ;  XX  X ;
 	.byte %00110100  ;  XX X  ;
 	.byte %00111000  ;  XXX   ;
+	.byte %01110000  ; XXX    ;
+	.byte %10100000  ;X X     ;
+	.byte %10110000  ;X XX    ;
+	.byte %10110000  ;X XX    ;
+
+FencerHigh
+	.byte %00100100  ;  X  X  ;
+	.byte %00100110  ;  X  XX ;
+	.byte %00110010  ;  XX  X ;
+	.byte %00110110  ;  XX XX ;
+	.byte %00111100  ;  XXXX  ;
+	.byte %00111000  ;  XXX   ;
+	.byte %00110000  ;  XX    ;
+	.byte %00110000  ;  XX    ;
+	.byte %00110000  ;  XX    ;
+	.byte %00110000  ;  XX    ;
+	.byte %01111000  ; XXXX   ;
+	.byte %10100100  ;X X  X  ;
+	.byte %10110010  ;X XX  X ;
+	.byte %10110001  ;X XX   X;
+	
+FencerMid
+	.byte %00100100  ;  X  X  ;
+	.byte %00100110  ;  X  XX ;
+	.byte %00110010  ;  XX  X ;
+	.byte %00110110  ;  XX XX ;
+	.byte %00111100  ;  XXXX  ;
+	.byte %00111000  ;  XXX   ;
+	.byte %00110000  ;  XX    ;
+	.byte %00110000  ;  XX    ;
+	.byte %00110110  ;  XX XX ;
+	.byte %00111001  ;  XXX  X;
 	.byte %01110000  ; XXX    ;
 	.byte %10100000  ;X X     ;
 	.byte %10110000  ;X XX    ;
