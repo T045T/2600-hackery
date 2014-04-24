@@ -109,8 +109,6 @@ MainLoop
 	LDA #0
 	STA VSYNC 	
 
-	STA CXCLR		; Reset collision registers - for some reason
-				; the missile graphics aren't drawn after they've collided with each other
 
 ;Main Computations; check down, up, left, right
 ;general idea is to do a BIT compare to see if 
@@ -249,7 +247,7 @@ IsP0_On
 	LDA FencerLow-1,X	; 4 (5 if across page)
 	STA GRP0Next		; 3
 	DEC P0LinesLeft		; 5
-	CPX LowSwordOffset 	; 2 - X still holds *old* P0LinesLeft, the one for the current line
+	CPX #LowSwordOffset 	; 2 - X still holds *old* P0LinesLeft, the one for the current line
 	BNE DeactivateSwordP0	; 2 (3 if taken) - Don't activate Missile Register if not equal
 ActivateSwordP0
 	LDA #2			; 2
@@ -271,7 +269,7 @@ IsP1_On
 	LDA FencerLow-1,X		
 	STA GRP1Next
 	DEC P1LinesLeft
-	CPX LowSwordOffset 	; X still holds *old* P1LinesLeft, the one for the current line
+	CPX #LowSwordOffset 	; X still holds *old* P1LinesLeft, the one for the current line
 	BNE DeactivateSwordP1	; Don't activate Missile Register if not equal
 ActivateSwordP1
 	LDA #2
