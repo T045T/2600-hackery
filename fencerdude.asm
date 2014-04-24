@@ -43,27 +43,59 @@ ClearMem
 	STA COLUBK	;start with black background
 	LDA #66
 	STA COLUP0
+	LDA #$1E
+	STA COLUP1
 ;Setting some variables...
 	LDA #80
 	STA P0YPosFromBot	;Initial Y Position
-
+	STA P1YPosFromBot
+	
 	LDA #$30	
 	STA NUSIZ0	; Missile is 8 color clocks wide, player normal
-	STA NUSIZ0	; Missile is 8 color clocks wide, player normal
+	STA NUSIZ1	; Missile is 8 color clocks wide, player normal
 
 	; Reset Player and missile position
+	LDX #12
 	STA WSYNC
-	STA RESP0 		;Player 0 to left edge of screen
+	STA RESP0 		; (4) Player 0 to left edge of screen
+
+P1Reset
+	DEX			; 2
+	BNE P1Reset		; 2 (3)
+	NOP
+	;; The Loop above should take 13*5 - 1 = 64 cycles, plus the 4 from RESP0
+	;; makes 68. This means we're at color clock 68*3 = 204
+	STA RESM1
+	STA RESP1		;Reset Player 1 too, close to the right edge
+	LDA #8
+	STA REFP1		; Reflect Player 1 so that the sprite points left
+	
+	STA WSYNC
+	
 	LDA #2
 	STA RESMP0		; Player 0 missile (sword) on top of Player 0
+	;; STA RESMP1		; Player 1 missile (sword) on top of Player 1
 	LDA #0
 	STA RESMP0		; Activate missile graphic
+	;; STA RESMP1		; Activate missile graphic
 
-	 LDA #$C0
-	 STA HMM0
-	 STA WSYNC
-	 STA HMOVE
+	
+	LDA #$C0
+	STA HMM0
+	LDA #$D0
+	STA HMM1
+	LDA #$F0
+	STA HMP1
+	STA WSYNC
+	STA HMOVE
+	
+	;; LDA #$F1
+	;; STA GRP1
+	;; LDA #2
+	;; STA ENAM1
 
+	STA WSYNC
+	STA HMCLR
 
 ;VSYNC time
 MainLoop
@@ -166,50 +198,87 @@ WaitForVblankEnd
 
 
 ScanLoop 
-	STA WSYNC 	
+	STA WSYNC 		; 3
 
-	LDA GRP0Next
-	STA GRP0
-	LDA ENAM0Next
-	STA ENAM0
+	LDA GRP0Next		; 3
+	STA GRP0		; 3
+	LDA ENAM0Next		; 3
+	STA ENAM0		; 3
+	
+	LDA GRP1Next		; 3
+	STA GRP1		; 3
+	LDA ENAM1Next		; 3
+	STA ENAM1		; 3
+	;; Total cycles: 27
 	
 ; here the idea is that P0LinesLeft
 ; is zero if the line isn't being drawn now,
 ; otherwise it's however many lines we have to go
 
-CheckActivateFencer
-	CPY P0YPosFromBot
-	BNE SkipActivateFencer
-	LDA #14
-	STA P0LinesLeft
-SkipActivateFencer
+CheckActivateP0
+	CPY P0YPosFromBot	; 3
+	BNE SkipActivateP0	; 2 (3 if taken)
+	LDA #14			; 2
+	STA P0LinesLeft		; 3
+SkipActivateP0
+	;; Total Cycles: 10
+
+CheckActivateP1
+	CPY P1YPosFromBot	; 3
+	BNE SkipActivateP1	; 2 (3)
+	LDA #14			; 2
+	STA P1LinesLeft		; 3
+SkipActivateP1
 
 ;turn player graphics off then see if there's a line of sprite to draw
-	LDA #0		
-	STA GRP0Next
-;
-;if the P0LinesLeft is non zero,
-;we're drawing it
-;
-	LDX P0LinesLeft 
-	BEQ FinishFencer
-IsFencerOn	
-	LDA FencerLow-1,X		
-	STA GRP0Next
-	DEC P0LinesLeft
-	CPX LowSwordOffset 	; X still holds *old* P0LinesLeft, the one for the current line
-	BNE DeactivateSword	; Don't activate Missile Register if not equal
-ActivateSword
-	LDA #2
-	STA ENAM0Next
-	JMP FinishFencer
-DeactivateSword
-	LDA #0
-	STA ENAM0Next
-FinishFencer
+	LDA #0			; 2
+	STA GRP0Next		; 3
+	STA GRP1Next		; 3
 
-	DEY		
-	BNE ScanLoop	
+	;; if P0LinesLeft is non zero,
+	;; we're drawing it
+
+	LDX P0LinesLeft 	; 3
+	BEQ FinishP0		; 2 (3 of taken)
+IsP0_On	
+	LDA FencerLow-1,X	; 4 (5 if across page)
+	STA GRP0Next		; 3
+	DEC P0LinesLeft		; 5
+	CPX LowSwordOffset 	; 2 - X still holds *old* P0LinesLeft, the one for the current line
+	BNE DeactivateSwordP0	; 2 (3 if taken) - Don't activate Missile Register if not equal
+ActivateSwordP0
+	LDA #2			; 2
+	STA ENAM0Next		; 3
+	JMP FinishP0		; 3
+DeactivateSwordP0
+	LDA #0			; 2
+	STA ENAM0Next		; 3
+FinishP0
+
+	;; Total Cycles: 32
+
+	;; if P1LinesLeft is non zero,
+	;; we're drawing it
+
+	LDX P1LinesLeft 
+	BEQ FinishP1
+IsP1_On	
+	LDA FencerLow-1,X		
+	STA GRP1Next
+	DEC P1LinesLeft
+	CPX LowSwordOffset 	; X still holds *old* P1LinesLeft, the one for the current line
+	BNE DeactivateSwordP1	; Don't activate Missile Register if not equal
+ActivateSwordP1
+	LDA #2
+	STA ENAM1Next
+	JMP FinishP1
+DeactivateSwordP1
+	LDA #0
+	STA ENAM1Next
+FinishP1
+
+	DEY			; 2
+	BNE ScanLoop		; 2 (3)
 
 	LDA #2		
 	STA WSYNC  	
