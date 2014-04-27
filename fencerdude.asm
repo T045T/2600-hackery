@@ -474,34 +474,34 @@ P0SkipDraw
 SkipP0				; [42]
 	DEC $2D			; [42] + 5 // NOP
 	DEC $2D			; [47] + 5 // NOP
-	NOP			; [52] + 2
+	SEC			; [52] + 2 // Only got here because carrry bit was cleared, so re-set it for P1SkipDraw
 P1SkipDraw			; [54]
 	TXA			; [54] + 2
-	SEC			; [56] + 2
-	SBC P1YPosFromBot	; [58] + 3
-	ADC #15			; [61] + 2
-	BCC SkipP1		; [63] + 2 (3)
-	TAY			; [65] + 2
-	LDA (P1Sprite),Y	; [67] + 5
-	STA GRP1Next		; [72] + 3
-	JMP EndSkipDraw		; [75] + 3
-SkipP1				; [66]
-	DEC $2D			; [66] + 5 // NOP
-	DEC $2D			; [71] + 2 // NOP
-	NOP			; [76] + 2
-EndSkipDraw			; [78]
+	SBC P1YPosFromBot	; [56] + 3
+	ADC #15			; [59] + 2
+	BCC SkipP1		; [61] + 2 (3)
+	TAY			; [63] + 2
+	LDA (P1Sprite),Y	; [65] + 5
+	STA GRP1Next		; [70] + 3
+	JMP EndSkipDraw		; [73] + 3
+SkipP1				; [64]
+	DEC $2D			; [64] + 5 // NOP
+	DEC $2D			; [69] + 5 // NOP
+	NOP			; [74] + 2
+EndSkipDraw			; [76]
 
 P0Missile
-	CPX P0MissileLine	; [78] + 3
-	PHP			; [81] + 3
+	CPX P0MissileLine	; [76] + 3
+	PHP			; [79] + 3
 P1Missile
-	CPX P1MissileLine	; [84] + 3
-	PHP			; [87] + 3
+	CPX P1MissileLine	; [82] + 3
+	PHP			; [85] + 3
 
 				; [90]
-	DEC $2D			; YARRR! Here be booty! Fifteen cycles! \o/
+	DEC $2D			; YARRR! Here be booty! 17 cycles! \o/
 	DEC $2D
 	DEC $2D
+	NOP
 
 	;; End Skipdraw
 	
