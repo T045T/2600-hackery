@@ -441,7 +441,21 @@ WaitForVblankEnd
 	STA VBLANK  	
 
 
-;main scanline loop...
+	;; Main scanline loop!
+	;; Assumptions:
+	;; A = draw P0 sword this line?
+	;; Y = draw P1 sword this line?
+	;; X = Don't care
+
+	;; What's going on:
+	;; ScanLoop always takes 2 scanlines (2*76 = 152 cycles) to run - to
+	;; do this, branches need to be balanced, sometimes with creative use
+	;; of instructions other than NOP. These instructions have a "NOP" 
+	;; comment to mark them, although some also serve a real purpose
+	
+	;; Cycle counts are in the form of [X] + Y, where
+	;; X: Cycle where PC arrives at this instruction
+	;; Y: Number of cycles this instruction takes
 
 ScanLoop 
 	
@@ -463,94 +477,115 @@ ScanLoop
 
 	LDX CurrentLine		; [27] + 3
 
-	;; From here on out, there are 12 "ghost cycles" from the timer I removed
-	;; but I don't want to update all cycle counts right now
+	;; Assumptions:
+	;; X holds current scanline (counted from bottom, starting at 95)
+
+	;; What's going on:
+	;; P[0,1]YPosFromBot hold the lines where the two player sprites
+	;; start. If we're on that line, put 14 into P[0,1]LinesLeft, since
+	;; the sprites are 14 lines high. The following routine will draw
+	;; one line of each player and decrement the lines left.
+	;; To save cycles, P0LinesLeft is put into the Y register by the end
+	;; of this routine, so DrawPlayers won't have to load it
+ActivatePlayers			; [30]
+	LDY #14			; [30] + 2 Only need to do this once
+CheckActivateP1			; arrive at [32]
+	CPX P1YPosFromBot	; [32] + 3
+	BNE SkipActivateP1	; [35] + 2 (3)
+	STY P1LinesLeft		; [37] + 3
+	JMP CheckActivateP0	; [40] + 3
+SkipActivateP1			; [38] // Need to balance the shorter side of the branch
+	NOP			; [38] + 2
+	STA $2D			; [40] + 3 // NOP
+
+CheckActivateP0			; [43] 
+	CPX P0YPosFromBot	; [43] + 3
+	BNE SkipActivateP0	; [46] + 2 (3 if taken)
+	STY P0LinesLeft		; [48] + 3
+	JMP DrawPlayers		; [51] + 3 // Y contains lines left
+SkipActivateP0			; [49] // Need to balance the shorter side of the branch
+	NOP 			; [49] + 2 // NOP
+	LDY P0LinesLeft		; [51] + 3 // Player 0 is active, so we need to load lines left into Y for sprite drawing
+EndActivatePlayers
 	
-; here the idea is that P0LinesLeft
-; is zero if the line isn't being drawn now,
-; otherwise it's however many lines we have to go
+	;; Assumptions:
+	;; X holds current scanline (counted from Bottom, starting at 95)
+	;; Y holds lines left to draw of P0Sprite (i.e. P0LinesLeft)
 
-	LDY #14			; [38] + 2 Only need to do this once
-CheckActivateP1			; arrive at [51]
-	CPX P1YPosFromBot	; [51] + 3
-	BNE SkipActivateP1	; [54] + 2 (3)
-	STY P1LinesLeft		; [56] + 3
-	JMP CheckActivateP0	; [59] + 3
-SkipActivateP1
-	NOP			; [57] + 2
-	STA $2D			; [59] + 3
-
-CheckActivateP0
-	CPX P0YPosFromBot	; [40] + 3
-	BNE SkipActivateP0	; [43] + 2 (3 if taken)
-	STY P0LinesLeft		; [45] + 3
-	JMP StartSpriteDrawing	; [48] + 3
-SkipActivateP0
-	NOP 			; [46] + 2
-	LDY P0LinesLeft		; [48] + 3 - storing ACC to nowhere
-
-StartSpriteDrawing		; [62]
-;turn player graphics off then see if there's a line of sprite to draw
-
-	;; if P0LinesLeft is non zero,
-	;; we're drawing it
-
-	;; Y contains P0LinesLeft
-
-	BEQ FinishP0		; [73] + 2 (3 if taken)
+	;; What's going on:
+	;; Check whether P[0,1]LinesLeft > 0 - if it is, there's lines left to
+	;; draw for the corresponding player. If it's 0, put 0 into GRP[0,1]
+DrawPlayers			; [54]
+	BEQ DontDrawP0		; [54] + 2 (3 if taken)
 IsP0_On
-	DEY			; [75] + 2
-	LDA (P0Sprite),Y	; [77] + 5
-	STA GRP0Next		; [82] + 3
-	STY P0LinesLeft		; [85] + 3
-	JMP DrawP1Sprite	; [88] + 3
-FinishP0			; [76]
-	DEC $2D			; [76] + 5
-	NOP
-	STY P0LinesLeft		; [81] + 3
-	LDA #0			; [86] + 2
-	STA GRP0Next		; [88] + 3
+	DEY			; [56] + 2 // Decrement y to get a valid offset
+	LDA (P0Sprite),Y	; [58] + 5
+	STA GRP0Next		; [63] + 3
+	STY P0LinesLeft		; [66] + 3
+	JMP DrawP0Missile	; [69] + 3
+DontDrawP0			; [57] // Balance shorter side of branch
+	DEC $2D			; [57] + 5 // NOP
+	NOP			; [62] + 2 // NOP
+	STY P0LinesLeft		; [64] + 3 // Store new P0LinesLeft value (0)
+	LDA #0			; [67] + 2 // Set GRP0Next to 0 (we're done
+	STA GRP0Next		; [69] + 3 // drawing P0 for this scanline)
 	
-DrawP1Sprite			; [91]
-	CPX P0MissileLine	; [91] + 3
-	PHP			; [94] + 3 -
-	;; The status word is actually a valid input
-	;; to ENAM0/1, so that's cool
+DrawP0Missile			; [72]
+	CPX P0MissileLine	; [72] + 3
+	PHP			; [75] + 3
+	;; The status word after CPX actually has the correct bit
+	;; set to write to ENAM0/1, so push it to the stack as "ENAM0Next"
 
-	LDY P1LinesLeft 	; [97] + 3
-	BEQ FinishP1		; [100] + 2 (3)
+	LDY P1LinesLeft 	; [78] + 3
+	BEQ DontDrawP1		; [81] + 2 (3)
 IsP1_On
-	DEY			; [102] + 2
-	LDA (P1Sprite),Y	; [104] + 5
-	STA GRP1Next		; [109] + 3
-	STY P1LinesLeft		; [112] + 3
-	JMP PlayersDone		; [115] + 3
-FinishP1			; [103]
-	DEC $2D			; [103] + 5
-	DEC $2D			; [108] + 5
-	LDA #0			; [113] + 2
-	STA GRP1Next		; [115] + 3
+	DEY			; [83] + 2
+	LDA (P1Sprite),Y	; [85] + 5
+	STA GRP1Next		; [90] + 3
+	STY P1LinesLeft		; [93] + 3
+	JMP DrawP1Missile	; [96] + 3
+DontDrawP1			; [84]
+	DEC $2D			; [84] + 5 // NOP
+	DEC $2D			; [89] + 5 // NOP
+	LDA #0			; [94] + 2 // Set GRP1Next to 0 (we're done 
+	STA GRP1Next		; [96] + 3 // drawing P1 for this scanline)
 
-PlayersDone			; [118] - 6 Ghost cycles
-	CPX P1MissileLine	; [112] + 3
-	PHP			; [115] + 3
+DrawP1Missile			; [99]
+	CPX P1MissileLine	; [99] + 3
+	PHP			; [102] + 3
+EndDrawPlayers
 
-	LDY.w CurrentLine		; [118] + 3
-	DEC CurrentLine		; [121] + 2
-	BEQ StartOverscan	; [123] + 2 (3)
-	LDA (PF0Base),Y		; [125] + 5
-	TAX
-	LDA (PF1Base),Y		; [133] + 5
-	STA PF1Next		; [138] + 3
-	LDA (PF2Base),Y		; [141] + 5
+DrawPF				; [105]
+	LDY.w CurrentLine	; [105] + 4
+	;; the .w above changes the instruction from zero-width (3 cycles)
+	;; to absolute addressing (4 cycles), so we arrive at the end
+	;; right at cycle 152
+	DEC CurrentLine		; [109] + 5
+	BEQ StartOverscan	; [114] + 2 (3)
+	LDA (PF0Base),Y		; [116] + 5
+	TAX			; [121] + 2
+	LDA (PF1Base),Y		; [123] + 5
+	STA PF1Next		; [128] + 3
+	LDA (PF2Base),Y		; [131] + 5
 
-	STA PF2			; [146] + 3
-		
-	PLA			; 4
-	TAY
-	PLA			; 4
-	STX PF0			; [160] + 3
-	JMP ScanLoop		; [156, apparently] + 3
+	;; PF2 is drawn during cycles 38-60, and 114-136
+	;; In other words, the TIA is just done drawing it when we set
+	;; it here for the next two-line kernel :)
+	
+	STA PF2			; [136] + 3
+
+	;; Get the ENAM0 and ENAM1 values from the stack
+	;; ENAM1 was pushed last and goes into the Y
+	;; register, ENAM0 stays in the accumulator
+	PLA			; [139] + 4
+	TAY			; [143] + 2
+	PLA			; [145] + 4
+
+	;; This is the latest in a scanline we can set PF0,
+	;; and it appears to work without disturbing the current line's
+	;; drawing
+	STX PF0			; [149] + 3
+	JMP ScanLoop		; [152] + 3
 
 StartOverscan
 	LDA #2		
@@ -710,6 +745,7 @@ PF0Center
 	.byte %11110000
 	.byte %11110000
 	.byte %11110000
+	.byte %11110000
 
 	org $FE00
 PF1Center
@@ -808,8 +844,10 @@ PF1Center
 	.byte %00111100
 	.byte %00111100
 	.byte %00111100
+	.byte %00111100
 
 PF2Center
+	.byte %11000110
 	.byte %11000110
 	.byte %11000110
 	.byte %11000110
