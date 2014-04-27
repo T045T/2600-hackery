@@ -4,9 +4,9 @@
 	include vcs.h
 	org $F000
 
-LowSwordOffset = 7
-MidSwordOffset = 3
-HighSwordOffset = -1
+LowSwordOffset = 8
+MidSwordOffset = 4
+HighSwordOffset = 0
 
 P0YPosFromBot = $80;
 P0LinesLeft = $81;
@@ -459,6 +459,52 @@ ScanLoop
 
 	LDX CurrentLine		; [27] + 3
 
+	;; Skipdraw (as per Thomas Jentzsch - http://www.randomterrain.com/atari-2600-memories-tutorial-andrew-davie-23.html)
+
+P0SkipDraw
+	TXA			; [30] + 2
+	SEC			; [32] + 2
+	SBC P0YPosFromBot	; [34] + 3
+	ADC #15			; [37] + 2
+	BCC SkipP0		; [39] + 2 (3)
+	TAY			; [41] + 2
+	LDA (P0Sprite),Y	; [43] + 5
+	STA GRP0Next		; [48] + 3
+	JMP P1SkipDraw		; [51] + 3
+SkipP0				; [42]
+	DEC $2D			; [42] + 5 // NOP
+	DEC $2D			; [47] + 5 // NOP
+	NOP			; [52] + 2
+P1SkipDraw			; [54]
+	TXA			; [54] + 2
+	SEC			; [56] + 2
+	SBC P1YPosFromBot	; [58] + 3
+	ADC #15			; [61] + 2
+	BCC SkipP1		; [63] + 2 (3)
+	TAY			; [65] + 2
+	LDA (P1Sprite),Y	; [67] + 5
+	STA GRP1Next		; [72] + 3
+	JMP EndSkipDraw		; [75] + 3
+SkipP1				; [66]
+	DEC $2D			; [66] + 5 // NOP
+	DEC $2D			; [71] + 2 // NOP
+	NOP			; [76] + 2
+EndSkipDraw			; [78]
+
+P0Missile
+	CPX P0MissileLine	; [78] + 3
+	PHP			; [81] + 3
+P1Missile
+	CPX P1MissileLine	; [84] + 3
+	PHP			; [87] + 3
+
+				; [90]
+	DEC $2D			; YARRR! Here be booty! Fifteen cycles! \o/
+	DEC $2D
+	DEC $2D
+
+	;; End Skipdraw
+	
 	;; Assumptions:
 	;; X holds current scanline (counted from bottom, starting at 95)
 
@@ -469,73 +515,6 @@ ScanLoop
 	;; one line of each player and decrement the lines left.
 	;; To save cycles, P0LinesLeft is put into the Y register by the end
 	;; of this routine, so DrawPlayers won't have to load it
-ActivatePlayers			; [30]
-	LDY #14			; [30] + 2 Only need to do this once
-CheckActivateP1			; arrive at [32]
-	CPX P1YPosFromBot	; [32] + 3
-	BNE SkipActivateP1	; [35] + 2 (3)
-	STY P1LinesLeft		; [37] + 3
-	JMP CheckActivateP0	; [40] + 3
-SkipActivateP1			; [38] // Need to balance the shorter side of the branch
-	NOP			; [38] + 2
-	STA $2D			; [40] + 3 // NOP
-
-CheckActivateP0			; [43]
-	CPX P0YPosFromBot	; [43] + 3
-	BNE SkipActivateP0	; [46] + 2 (3 if taken)
-	STY P0LinesLeft		; [48] + 3
-	JMP DrawPlayers		; [51] + 3 // Y contains lines left
-SkipActivateP0			; [49] // Need to balance the shorter side of the branch
-	NOP			; [49] + 2 // NOP
-	LDY P0LinesLeft		; [51] + 3 // Player 0 is active, so we need to load lines left into Y for sprite drawing
-EndActivatePlayers
-
-	;; Assumptions:
-	;; X holds current scanline (counted from Bottom, starting at 95)
-	;; Y holds lines left to draw of P0Sprite (i.e. P0LinesLeft)
-
-	;; What's going on:
-	;; Check whether P[0,1]LinesLeft > 0 - if it is, there's lines left to
-	;; draw for the corresponding player. If it's 0, put 0 into GRP[0,1]
-DrawPlayers			; [54]
-	BEQ DontDrawP0		; [54] + 2 (3 if taken)
-IsP0_On
-	DEY			; [56] + 2 // Decrement y to get a valid offset
-	LDA (P0Sprite),Y	; [58] + 5
-	STA GRP0Next		; [63] + 3
-	STY P0LinesLeft		; [66] + 3
-	JMP DrawP0Missile	; [69] + 3
-DontDrawP0			; [57] // Balance shorter side of branch
-	DEC $2D			; [57] + 5 // NOP
-	NOP			; [62] + 2 // NOP
-	STY P0LinesLeft		; [64] + 3 // Store new P0LinesLeft value (0)
-	LDA #0			; [67] + 2 // Set GRP0Next to 0 (we're done
-	STA GRP0Next		; [69] + 3 // drawing P0 for this scanline)
-
-DrawP0Missile			; [72]
-	CPX P0MissileLine	; [72] + 3
-	PHP			; [75] + 3
-	;; The status word after CPX actually has the correct bit
-	;; set to write to ENAM0/1, so push it to the stack as "ENAM0Next"
-
-	LDY P1LinesLeft		; [78] + 3
-	BEQ DontDrawP1		; [81] + 2 (3)
-IsP1_On
-	DEY			; [83] + 2
-	LDA (P1Sprite),Y	; [85] + 5
-	STA GRP1Next		; [90] + 3
-	STY P1LinesLeft		; [93] + 3
-	JMP DrawP1Missile	; [96] + 3
-DontDrawP1			; [84]
-	DEC $2D			; [84] + 5 // NOP
-	DEC $2D			; [89] + 5 // NOP
-	LDA #0			; [94] + 2 // Set GRP1Next to 0 (we're done
-	STA GRP1Next		; [96] + 3 // drawing P1 for this scanline)
-
-DrawP1Missile			; [99]
-	CPX P1MissileLine	; [99] + 3
-	PHP			; [102] + 3
-EndDrawPlayers
 
 	;; Assumptions:
 	;; The top of the stack points at the next line's value for
@@ -628,6 +607,7 @@ divideby15
 
 	org $FD00
 FencerLow ; 14 Lines - Upside-Down because it's easier to draw that way
+	.byte %00000000
 	.byte %00100100  ;  X  X  ;
 	.byte %00100110  ;  X  XX ;
 	.byte %00110010  ;  XX  X ;
@@ -644,6 +624,7 @@ FencerLow ; 14 Lines - Upside-Down because it's easier to draw that way
 	.byte %10110000  ;X XX    ;
 
 FencerHigh
+	.byte %00000000
 	.byte %00100100  ;  X  X  ;
 	.byte %00100110  ;  X  XX ;
 	.byte %00110010  ;  XX  X ;
@@ -660,6 +641,7 @@ FencerHigh
 	.byte %10110001  ;X XX   X;
 
 FencerMid
+	.byte %00000000
 	.byte %00100100  ;  X  X  ;
 	.byte %00100110  ;  X  XX ;
 	.byte %00110010  ;  XX  X ;
