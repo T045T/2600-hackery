@@ -1,5 +1,5 @@
 ; move a sprite with the joystick
-	
+
 	processor 6502
 	include vcs.h
 	org $F000
@@ -7,7 +7,7 @@
 LowSwordOffset = 7
 MidSwordOffset = 3
 HighSwordOffset = -1
-	
+
 P0YPosFromBot = $80;
 P0LinesLeft = $81;
 P0MissileLine = $82
@@ -31,7 +31,7 @@ P1ArrowPos = $8E
 P0Sprite = $8F
 P1Sprite = $91
 
-P0Status = $93 		; Left nibble (D4-D7) is P0, right (D0-D3) P1
+P0Status = $93		; Left nibble (D4-D7) is P0, right (D0-D3) P1
 	;;  D1D0 : Current animation frame (4 frames each) - always back to 0 for standing, make sword shorter for the other frames
 	;;  D2   : Jumping?
 	;;  D3 : 0 if facing right, 1 if left (aligned to simply dump P0Status into REFP0)
@@ -47,21 +47,21 @@ CurrentLine = $95
 PF0Base = $96
 PF1Base = $98
 PF2Base = $9A
-CurrentScreen = $9C 		; Incremented when moving one screen to the right, decremented when moving to the left
+CurrentScreen = $9C		; Incremented when moving one screen to the right, decremented when moving to the left
 				; Levels are symmetrical, so if CurrentScreen is negative, use NOT(CurrentScreen)+1 as screen index
-	
+
 ;generic start up stuff...
 Start
-	SEI	
-	CLD  	
-	LDX #$FF	
-	TXS	
-	LDA #0		
-ClearMem 
-	STA 0,X		
-	DEX		
-	BNE ClearMem	
-	LDA #$00		
+	SEI
+	CLD
+	LDX #$FF
+	TXS
+	LDA #0
+ClearMem
+	STA 0,X
+	DEX
+	BNE ClearMem
+	LDA #$00
 	STA COLUBK	;start with black background
 	LDA #$82
 	STA COLUPF
@@ -75,45 +75,45 @@ ClearMem
 	LDA #40
 	STA P0YPosFromBot	;Initial Y Position
 	STA P1YPosFromBot
-	
-	LDA #$30	
+
+	LDA #$30
 	STA NUSIZ0	; Missile is 8 color clocks wide, player normal
 	STA NUSIZ1	; Missile is 8 color clocks wide, player normal
 
 	; Reset Player and missile position
-;; 	LDX #12
-;; 	STA WSYNC
-;; 	STA RESP0 		; (4) Player 0 to left edge of screen
+;;	LDX #12
+;;	STA WSYNC
+;;	STA RESP0		; (4) Player 0 to left edge of screen
 
 ;; P1Reset
-;; 	DEX			; 2
-;; 	BNE P1Reset		; 2 (3)
-;; 	NOP
-;; 	;; The Loop above should take 13*5 - 1 = 64 cycles, plus the 4 from RESP0
-;; 	;; makes 68. This means we're at color clock 68*3 = 204
-;; 	STA RESM1
-;; 	STA RESP1		;Reset Player 1 too, close to the right edge
-	
+;;	DEX			; 2
+;;	BNE P1Reset		; 2 (3)
+;;	NOP
+;;	;; The Loop above should take 13*5 - 1 = 64 cycles, plus the 4 from RESP0
+;;	;; makes 68. This means we're at color clock 68*3 = 204
+;;	STA RESM1
+;;	STA RESP1		;Reset Player 1 too, close to the right edge
+
 	LDA #%10000000		; Reset P0
 	STA P0Status
 	LDA #%10001000		; Reset P1, and have him reflected
 	STA P1Status
-	
+
 ;VSYNC time
 MainLoop
 	LDA #2
-	STA VSYNC	
-	STA WSYNC	
-	STA WSYNC 	
-	STA WSYNC	
-	LDA #43	
-	STA TIM64T	
+	STA VSYNC
+	STA WSYNC
+	STA WSYNC
+	STA WSYNC
+	LDA #43
+	STA TIM64T
 	LDA #0
-	STA VSYNC 	
+	STA VSYNC
 
 
 ;Main Computations; check down, up, left, right
-;general idea is to do a BIT compare to see if 
+;general idea is to do a BIT compare to see if
 ;a certain direction is pressed, and skip the value
 ;change if so
 
@@ -126,39 +126,39 @@ MainLoop
 ; the Y Position
 
 	LDA #%00010000	;Down?
-	BIT SWCHA 
+	BIT SWCHA
 	BNE P0SkipMoveDown
 	INC P0YPosFromBot
 P0SkipMoveDown
 
 	LDA #%00100000	;Up?
-	BIT SWCHA 
+	BIT SWCHA
 	BNE P0SkipMoveUp
 	DEC P0YPosFromBot
 P0SkipMoveUp
 
-; for left and right, we're gonna 
+; for left and right, we're gonna
 ; set the horizontal speed, and then do
 ; a single HMOVE.  We'll use X to hold the
-; horizontal speed, then store it in the 
+; horizontal speed, then store it in the
 ; appropriate register
 
 
 ;assume horiz speed will be zero
-	LDX #0	
+	LDX #0
 
 	LDA #%01000000	;Left?
-	BIT SWCHA 
+	BIT SWCHA
 	BNE P0SkipMoveLeft
 	LDX #$10	;a 1 in the left nibble means go left
 P0SkipMoveLeft
-	
+
 	LDA #%10000000	;Right?
-	BIT SWCHA 
+	BIT SWCHA
 	BNE P0SkipMoveRight
 	LDX #$F0	;a -1 in the left nibble means go right...
 P0SkipMoveRight
-			;(in 4 bits, using "two's complement 
+			;(in 4 bits, using "two's complement
 			; notation", binary 1111 = decimal -1
 			; (which we write there as hex F --
 			; confused?))
@@ -169,41 +169,41 @@ P0SkipMoveRight
 
 
 	;; Now, check P1
-	
+
 	LDA #%00000001	;Down?
-	BIT SWCHA 
+	BIT SWCHA
 	BNE P1SkipMoveDown
 	INC P1YPosFromBot
 P1SkipMoveDown
 
 	LDA #%00000010	;Up?
-	BIT SWCHA 
+	BIT SWCHA
 	BNE P1SkipMoveUp
 	DEC P1YPosFromBot
 P1SkipMoveUp
 
-; for left and right, we're gonna 
+; for left and right, we're gonna
 ; set the horizontal speed, and then do
 ; a single HMOVE.  We'll use X to hold the
-; horizontal speed, then store it in the 
+; horizontal speed, then store it in the
 ; appropriate register
 
 
 ;assume horiz speed will be zero
-	LDX #0	
+	LDX #0
 
 	LDA #%00000100	;Left?
-	BIT SWCHA 
+	BIT SWCHA
 	BNE P1SkipMoveLeft
 	LDX #$10	;a 1 in the left nibble means go left
 P1SkipMoveLeft
-	
+
 	LDA #%00001000	;Right?
-	BIT SWCHA 
+	BIT SWCHA
 	BNE P1SkipMoveRight
 	LDX #$F0	;a -1 in the left nibble means go right...
 P1SkipMoveRight
-			;(in 4 bits, using "two's complement 
+			;(in 4 bits, using "two's complement
 			; notation", binary 1111 = decimal -1
 			; (which we write there as hex F --
 			; confused?))
@@ -215,7 +215,7 @@ P1SkipMoveRight
 ; while we're at it, change the color of the background
 ; if the button is pressed (making sure D6 of VBLANK has
 ; appropriately set above) We'll set the background color
-; to the vertical position, since that will be changing 
+; to the vertical position, since that will be changing
 ; a lot but we can still control it.
 
 	LDA INPT4		;read button input
@@ -246,12 +246,12 @@ ChangedStance
 	;; STA COLUBK		;load into bgcolor
 ButtonNotPressed
 
-	STA WSYNC	
-	STA HMOVE 	
+	STA WSYNC
+	STA HMOVE
 
 CheckPlayerStatus
 	LDA P0Status		; Set reflection bit for both players according to their status byte
-	STA REFP0		
+	STA REFP0
 	LDA P1Status
 	STA REFP1
 P0PosStart
@@ -331,7 +331,7 @@ P0Reset
 	STA RESP0
 P0ResetDone
 	LDA P0Status
-	AND #%01111111 		; Clear reset bit
+	AND #%01111111		; Clear reset bit
 	STA P0Status
 P1Reset
 	LDA #%10000000
@@ -421,24 +421,24 @@ P1SwordSkip
 	STA PF0Base
 	LDA #>PF0Center
 	STA PF0Base+1
-	
+
 	LDA #<PF1Center
 	STA PF1Base
 	LDA #>PF1Center
 	STA PF1Base+1
-	
+
 	LDA #<PF2Center
 	STA PF2Base
 	LDA #>PF2Center
 	STA PF2Base+1
-	
+
 WaitForVblankEnd
-	LDA INTIM	
-	BNE WaitForVblankEnd	
-	LDX #95 		; Halved because we're now using a two-line kernel
+	LDA INTIM
+	BNE WaitForVblankEnd
+	LDX #95			; Halved because we're now using a two-line kernel
 	STX CurrentLine
 	STA WSYNC
-	STA VBLANK  	
+	STA VBLANK
 
 
 	;; Main scanline loop!
@@ -451,7 +451,7 @@ WaitForVblankEnd
 	;; The "Scanloop", or Kernel, always takes 2 scanlines
 	;; (2*76 = 152 cycles) to run - to do this, branches
 	;; need to be balanced, sometimes with creative use
-	;; of instructions other than NOP. These instructions have a "NOP" 
+	;; of instructions other than NOP. These instructions have a "NOP"
 	;; comment to mark them.
 	;;
 	;; What the Kernel actually does in the two scanlines is two things:
@@ -459,25 +459,25 @@ WaitForVblankEnd
 	;;    what they should be for the 2 scanlines the loop runs
 	;; 2. Decide whether to load and potentially load from ROM the register
 	;;    values for the next Kernel iteration
-	
+
 	;; Cycle counts are in the form of [X] + Y, where
 	;; X: Cycle where PC arrives at this instruction
 	;; Y: Number of cycles this instruction takes
 
-ScanLoop 
-	
+ScanLoop
+
 	;; Entry point is at 3 cycles, since the jump from the end of the loop
 	;; happens right at the end of the line
 	STA ENAM0		; [3] + 3
 	STY ENAM1		; [6] + 3
 	LDA GRP0Next		; [9] + 3
 	STA GRP0		; [12] + 3
-	
+
 	LDA GRP1Next		; [15] + 3
 	STA GRP1		; [18] + 3
 
 	;; All player and missile registers set after 21 cycles
-	
+
 	;; PF0 and PF2 are set at the end of the loop, and PF1
 	;; doesn't start drawing until cycle 28, so set it here
 	;; (68 color cycles HBLANK + 4 Bits * 4 color cycles from PF0
@@ -508,16 +508,16 @@ SkipActivateP1			; [38] // Need to balance the shorter side of the branch
 	NOP			; [38] + 2
 	STA $2D			; [40] + 3 // NOP
 
-CheckActivateP0			; [43] 
+CheckActivateP0			; [43]
 	CPX P0YPosFromBot	; [43] + 3
 	BNE SkipActivateP0	; [46] + 2 (3 if taken)
 	STY P0LinesLeft		; [48] + 3
 	JMP DrawPlayers		; [51] + 3 // Y contains lines left
 SkipActivateP0			; [49] // Need to balance the shorter side of the branch
-	NOP 			; [49] + 2 // NOP
+	NOP			; [49] + 2 // NOP
 	LDY P0LinesLeft		; [51] + 3 // Player 0 is active, so we need to load lines left into Y for sprite drawing
 EndActivatePlayers
-	
+
 	;; Assumptions:
 	;; X holds current scanline (counted from Bottom, starting at 95)
 	;; Y holds lines left to draw of P0Sprite (i.e. P0LinesLeft)
@@ -539,14 +539,14 @@ DontDrawP0			; [57] // Balance shorter side of branch
 	STY P0LinesLeft		; [64] + 3 // Store new P0LinesLeft value (0)
 	LDA #0			; [67] + 2 // Set GRP0Next to 0 (we're done
 	STA GRP0Next		; [69] + 3 // drawing P0 for this scanline)
-	
+
 DrawP0Missile			; [72]
 	CPX P0MissileLine	; [72] + 3
 	PHP			; [75] + 3
 	;; The status word after CPX actually has the correct bit
 	;; set to write to ENAM0/1, so push it to the stack as "ENAM0Next"
 
-	LDY P1LinesLeft 	; [78] + 3
+	LDY P1LinesLeft		; [78] + 3
 	BEQ DontDrawP1		; [81] + 2 (3)
 IsP1_On
 	DEY			; [83] + 2
@@ -557,7 +557,7 @@ IsP1_On
 DontDrawP1			; [84]
 	DEC $2D			; [84] + 5 // NOP
 	DEC $2D			; [89] + 5 // NOP
-	LDA #0			; [94] + 2 // Set GRP1Next to 0 (we're done 
+	LDA #0			; [94] + 2 // Set GRP1Next to 0 (we're done
 	STA GRP1Next		; [96] + 3 // drawing P1 for this scanline)
 
 DrawP1Missile			; [99]
@@ -574,7 +574,7 @@ EndDrawPlayers
 	;; store them in RAM and set up the Registers (A and Y) so they can be
 	;; used at the top of the loop.
 	;; We also set PF0, since there's no time to do it at the top
-	
+
 DrawPF				; [105]
 	LDY.w CurrentLine	; [105] + 4 // Load current line into Y
 				;           // (it's also in X, but the addressing mode we need below only works with Y...)
@@ -592,7 +592,7 @@ DrawPF				; [105]
 	;; PF2 is drawn during cycles 38-60, and 114-136
 	;; In other words, the TIA is just done drawing it when we set
 	;; it here for the next two-line interval :)
-	
+
 	STA PF2			; [136] + 3
 
 	;; Get the ENAM0 and ENAM1 values from the stack
@@ -610,9 +610,9 @@ DrawPF				; [105]
 EndScanLoop
 
 StartOverscan
-	LDA #2		
-	STA WSYNC  	
-	STA VBLANK 	
+	LDA #2
+	STA WSYNC
+	STA VBLANK
 	LDY #31
 	PLA			; These are here to make sure the stack doesn't overflow
 	PLA
@@ -620,7 +620,7 @@ OverScanWait
 	STA WSYNC
 	DEY
 	BNE OverScanWait
-	JMP  MainLoop      
+	JMP  MainLoop
 
 	org $FD00
 FencerLow ; 14 Lines - Upside-Down because it's easier to draw that way
@@ -654,7 +654,7 @@ FencerHigh
 	.byte %10100100  ;X X  X  ;
 	.byte %10110010  ;X XX  X ;
 	.byte %10110001  ;X XX   X;
-	
+
 FencerMid
 	.byte %00100100  ;  X  X  ;
 	.byte %00100110  ;  X  XX ;
@@ -965,7 +965,7 @@ PF2Center
 	.byte %11000110
 	.byte %11000110
 	.byte %11000110
-	
+
 	org $FFFC
 	.word Start		; NMI
 	.word Start		; RESET
