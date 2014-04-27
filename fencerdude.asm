@@ -80,20 +80,6 @@ ClearMem
 	STA NUSIZ0	; Missile is 8 color clocks wide, player normal
 	STA NUSIZ1	; Missile is 8 color clocks wide, player normal
 
-	; Reset Player and missile position
-;;	LDX #12
-;;	STA WSYNC
-;;	STA RESP0		; (4) Player 0 to left edge of screen
-
-;; P1Reset
-;;	DEX			; 2
-;;	BNE P1Reset		; 2 (3)
-;;	NOP
-;;	;; The Loop above should take 13*5 - 1 = 64 cycles, plus the 4 from RESP0
-;;	;; makes 68. This means we're at color clock 68*3 = 204
-;;	STA RESM1
-;;	STA RESP1		;Reset Player 1 too, close to the right edge
-
 	LDA #%10000000		; Reset P0
 	STA P0Status
 	LDA #%10001000		; Reset P1, and have him reflected
@@ -125,38 +111,37 @@ MainLoop
 ; for up and down, we INC or DEC
 ; the Y Position
 
-	LDA #%00010000	;Down?
+	LDA #%00010000	; Down?
 	BIT SWCHA
 	BNE P0SkipMoveDown
 	INC P0YPosFromBot
 P0SkipMoveDown
 
-	LDA #%00100000	;Up?
+	LDA #%00100000	; Up?
 	BIT SWCHA
 	BNE P0SkipMoveUp
 	DEC P0YPosFromBot
 P0SkipMoveUp
 
-; for left and right, we're gonna
-; set the horizontal speed, and then do
-; a single HMOVE.  We'll use X to hold the
-; horizontal speed, then store it in the
-; appropriate register
+	;; for left and right, we're gonna
+	;; set the horizontal speed, and then do
+	;; a single HMOVE.  We'll use X to hold the
+	;; horizontal speed, then store it in the
+	;; appropriate register
 
-
-;assume horiz speed will be zero
+	;; assume horiz speed will be zero
 	LDX #0
 
-	LDA #%01000000	;Left?
+	LDA #%01000000	; Left?
 	BIT SWCHA
 	BNE P0SkipMoveLeft
-	LDX #$10	;a 1 in the left nibble means go left
+	LDX #$10	; a 1 in the left nibble means go left
 P0SkipMoveLeft
 
-	LDA #%10000000	;Right?
+	LDA #%10000000	; Right?
 	BIT SWCHA
 	BNE P0SkipMoveRight
-	LDX #$F0	;a -1 in the left nibble means go right...
+	LDX #$F0	; a -1 in the left nibble means go right...
 P0SkipMoveRight
 			;(in 4 bits, using "two's complement
 			; notation", binary 1111 = decimal -1
@@ -164,44 +149,36 @@ P0SkipMoveRight
 			; confused?))
 
 
-	STX HMP0	;set the move for Player 0
+	STX HMP0	; set the move for Player 0
 	STX HMM0	; ... and Missile (sword) 0
 
 
 	;; Now, check P1
 
-	LDA #%00000001	;Down?
+	LDA #%00000001	; Down?
 	BIT SWCHA
 	BNE P1SkipMoveDown
 	INC P1YPosFromBot
 P1SkipMoveDown
 
-	LDA #%00000010	;Up?
+	LDA #%00000010	; Up?
 	BIT SWCHA
 	BNE P1SkipMoveUp
 	DEC P1YPosFromBot
 P1SkipMoveUp
 
-; for left and right, we're gonna
-; set the horizontal speed, and then do
-; a single HMOVE.  We'll use X to hold the
-; horizontal speed, then store it in the
-; appropriate register
-
-
-;assume horiz speed will be zero
 	LDX #0
 
-	LDA #%00000100	;Left?
+	LDA #%00000100	; Left?
 	BIT SWCHA
 	BNE P1SkipMoveLeft
-	LDX #$10	;a 1 in the left nibble means go left
+	LDX #$10	; a 1 in the left nibble means go left
 P1SkipMoveLeft
 
-	LDA #%00001000	;Right?
+	LDA #%00001000	; Right?
 	BIT SWCHA
 	BNE P1SkipMoveRight
-	LDX #$F0	;a -1 in the left nibble means go right...
+	LDX #$F0	; a -1 in the left nibble means go right...
 P1SkipMoveRight
 			;(in 4 bits, using "two's complement
 			; notation", binary 1111 = decimal -1
@@ -209,15 +186,12 @@ P1SkipMoveRight
 			; confused?))
 
 
-	STX HMP1	;set the move for Player 0
+	STX HMP1	; set the move for Player 0
 	STX HMM1	; ... and Missile (sword) 0
 
-; while we're at it, change the color of the background
-; if the button is pressed (making sure D6 of VBLANK has
-; appropriately set above) We'll set the background color
-; to the vertical position, since that will be changing
-; a lot but we can still control it.
 
+	;; Use the button input for stance switching (mostly to test it)
+	;; Pressing the button will cycle through low-med-high stances
 	LDA INPT4		;read button input
 	BMI ButtonNotPressed	;skip if button not pressed
 	LDA #%00010000
@@ -242,8 +216,6 @@ IsHigh				; And back to low.
 	ADC #%00000000
 ChangedStance
 	STA P0Status
-	;; LDA P0YPosFromBot		;must be pressed, get YPos
-	;; STA COLUBK		;load into bgcolor
 ButtonNotPressed
 
 	STA WSYNC
