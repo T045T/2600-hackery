@@ -448,10 +448,17 @@ WaitForVblankEnd
 	;; X = Don't care
 
 	;; What's going on:
-	;; ScanLoop always takes 2 scanlines (2*76 = 152 cycles) to run - to
-	;; do this, branches need to be balanced, sometimes with creative use
+	;; The "Scanloop", or Kernel, always takes 2 scanlines
+	;; (2*76 = 152 cycles) to run - to do this, branches
+	;; need to be balanced, sometimes with creative use
 	;; of instructions other than NOP. These instructions have a "NOP" 
-	;; comment to mark them, although some also serve a real purpose
+	;; comment to mark them.
+	;;
+	;; What the Kernel actually does in the two scanlines is two things:
+	;; 1. Set the relevant registers (GRP[0,1], ENAM[0,1], PF[0,1,2]) to
+	;;    what they should be for the 2 scanlines the loop runs
+	;; 2. Decide whether to load and potentially load from ROM the register
+	;;    values for the next Kernel iteration
 	
 	;; Cycle counts are in the form of [X] + Y, where
 	;; X: Cycle where PC arrives at this instruction
@@ -471,7 +478,10 @@ ScanLoop
 
 	;; All player and missile registers set after 21 cycles
 	
-	;; PF0 and PF2 are set at the end of the loop
+	;; PF0 and PF2 are set at the end of the loop, and PF1
+	;; doesn't start drawing until cycle 28, so set it here
+	;; (68 color cycles HBLANK + 4 Bits * 4 color cycles from PF0
+	;;  => color cycle 84, 84 / 3 = 28 )
 	LDA PF1Next		; [21] + 3
 	STA PF1			; [24] + 3
 
@@ -555,22 +565,33 @@ DrawP1Missile			; [99]
 	PHP			; [102] + 3
 EndDrawPlayers
 
+	;; Assumptions:
+	;; The top of the stack points at the next line's value for
+	;; ENAM1, the next value on the stack after that is ENAM0
+	;;
+	;; What's going on:
+	;; Here, we load the values for the 3 playfield registers from ROM,
+	;; store them in RAM and set up the Registers (A and Y) so they can be
+	;; used at the top of the loop.
+	;; We also set PF0, since there's no time to do it at the top
+	
 DrawPF				; [105]
-	LDY.w CurrentLine	; [105] + 4
+	LDY.w CurrentLine	; [105] + 4 // Load current line into Y
+				;           // (it's also in X, but the addressing mode we need below only works with Y...)
 	;; the .w above changes the instruction from zero-width (3 cycles)
 	;; to absolute addressing (4 cycles), so we arrive at the end
 	;; right at cycle 152
 	DEC CurrentLine		; [109] + 5
-	BEQ StartOverscan	; [114] + 2 (3)
+	BEQ StartOverscan	; [114] + 2 (3) // If we're at line 0, the playfield is done, go into overscan
 	LDA (PF0Base),Y		; [116] + 5
-	TAX			; [121] + 2
+	TAX			; [121] + 2 // Store PF0 value in X, we can't set it yet, because it has yet to be drawn in the right screen half
 	LDA (PF1Base),Y		; [123] + 5
 	STA PF1Next		; [128] + 3
 	LDA (PF2Base),Y		; [131] + 5
 
 	;; PF2 is drawn during cycles 38-60, and 114-136
 	;; In other words, the TIA is just done drawing it when we set
-	;; it here for the next two-line kernel :)
+	;; it here for the next two-line interval :)
 	
 	STA PF2			; [136] + 3
 
@@ -586,6 +607,7 @@ DrawPF				; [105]
 	;; drawing
 	STX PF0			; [149] + 3
 	JMP ScanLoop		; [152] + 3
+EndScanLoop
 
 StartOverscan
 	LDA #2		
