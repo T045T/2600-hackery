@@ -499,9 +499,11 @@ P1Missile
 
 				; [90]
 	DEC $2D			; YARRR! Here be booty! 17 cycles! \o/
-	DEC $2D
-	DEC $2D
 	NOP
+	NOP
+	LDA #0
+	STA ENAM0
+	STA ENAM1
 
 	;; End Skipdraw
 	
