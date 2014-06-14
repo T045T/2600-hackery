@@ -4,6 +4,100 @@
 	include vcs.h
 	org $F000
 
+	MAC DO_WITH_BITMASK
+.INDEX SET {2}
+	IF .INDEX == 0
+	{1} #%00000001
+	ENDIF
+	IF .INDEX == 1
+	{1} #%00000010
+	ENDIF
+	IF .INDEX == 2
+	{1} #%00000100
+	ENDIF
+	IF .INDEX == 3
+	{1} #%00001000
+	ENDIF
+	IF .INDEX == 4
+	{1} #%00010000
+	ENDIF
+	IF .INDEX == 5
+	{1} #%00100000
+	ENDIF
+	IF .INDEX == 6
+	{1} #%01000000
+	ENDIF
+	IF .INDEX == 7
+	{1} #%10000000
+	ENDIF
+	ECHO "MASK: " , MASK
+	ENDM
+
+	MAC do_with_bitmask_inv
+.INDEX SET {2}
+	if .INDEX == 0
+	{1} #%11111110
+	endif
+	if .INDEX == 1
+	{1} #%11111101
+	endif
+	if .INDEX == 2
+	{1} #%11111011
+	endif
+	if .INDEX == 3
+	{1} #%11110111
+	endif
+	if .INDEX == 4
+	{1} #%11101111
+	endif
+	if .INDEX == 5
+	{1} #%11011111
+	endif
+	if .INDEX == 6
+	{1} #%10111111
+	endif
+	if .INDEX == 7
+	{1} #%01111111
+	endif
+	ENDM
+	
+;;; Usage: unlessbit [bit number] [variable] [label to jump to if bit set]
+	MAC unlessbit
+	DO_WITH_BITMASK LDA, {1}
+	BIT {2}
+	BEQ {3}
+	ENDM
+
+;;; Usage: ifbit [bit number] [variable] [label to jump to if bit set]
+	MAC ifbit
+	DO_WITH_BITMASK LDA, {1}
+	BIT {2}
+	BNE {3}
+	ENDM
+	
+;;; Usage: setbit [bit number] [variable]
+	MAC setbit
+	LDA {2}
+	DO_WITH_BITMASK ORA, {1}
+	STA {2}
+	ENDM
+
+;;; Usage: clearbit [bit number] [variable]
+	MAC clearbit
+	LDA {2}
+	do_with_bitmask_inv AND, {1}
+	STA {2}
+	ENDM
+;;; Bit Names:
+SWCHA_P1Up = 0
+SWCHA_P1Down = 1
+SWCHA_P1Left = 2
+SWCHA_P1Right = 3
+SWCHA_P0Up = 4
+SWCHA_P0Down = 5
+SWCHA_P0Left = 6
+SWCHA_P0Right = 7
+	
 LowSwordOffset = 8
 MidSwordOffset = 4
 HighSwordOffset = 0
@@ -32,15 +126,16 @@ P0Sprite = $8F
 P1Sprite = $91
 
 P0Status = $93
-	;;  D1D0 : Current animation frame (4 frames each) - always back to 0 for standing, make sword shorter for the other frames
-	;;  D2   : Jumping?
-	;;  D3 : 0 if facing right, 1 if left (aligned to simply dump P0Status into REFP0)
-	;;  D5D4 : Counter for stance:
-	;;   0 0 : Low - if Jumping, DIVE!
-	;;   0 1 : Med - if Jumping, KICK!
-	;;   1 0 : High
-	;;  D6: SwordThrown (if 1, don't touch P0MissileLine or HMM0 for Joystick events, sword is taken care of by physics - haha, like we have physics)
-	;;  D7: ResetPlayer (if 1, reset Player to his edge of the screen)
+			;;  D1D0 : Current animation frame (4 frames each) - always back to 0 for standing, make sword shorter for the other frames
+Status_Jumping = 2	;;  D2   : Jumping?
+Status_Leftfacing = 3	;;  D3 : 0 if facing right, 1 if left (aligned to simply dump P0Status into REFP0)
+			;;  D5D4 : Counter for stance:
+Status_JumpKicking = 4	;;   0 0 : Low - if Jumping, DIVE!
+Status_MidStance = 4	;;   0 1 : Med - if Jumping, KICK!
+Status_HighStance = 5	;;   1 0 : High
+Status_SwordThrown = 6	;;  D6: SwordThrown (if 1, don't touch P0MissileLine or HMM0 for Joystick events, sword is taken care of by physics - haha, like we have physics)
+Status_Reset = 7	;;  D7: ResetPlayer (if 1, reset Player to his edge of the screen)
+			;;  From left to right, i.e. foo = #%D7D6D5D4D3D2D1D0
 P1Status = $94
 
 CurrentLine = $95
@@ -49,6 +144,10 @@ PF1Base = $98
 PF2Base = $9A
 CurrentScreen = $9C		; Incremented when moving one screen to the right, decremented when moving to the left
 				; Levels are symmetrical, so if CurrentScreen is negative, use NOT(CurrentScreen)+1 as screen index
+P0XPos = $9D
+P1XPos = $9E
+P0SwordX = $9F
+P1SwordX = $A0
 
 ;generic start up stuff...
 Start
@@ -85,6 +184,7 @@ ClearMem
 	LDA #%10001000		; Reset P1, and have him reflected
 	STA P1Status
 
+
 ;VSYNC time
 MainLoop
 	LDA #2
@@ -108,118 +208,83 @@ MainLoop
 ;including diagonal movement
 ;
 
-; for up and down, we INC or DEC
-; the Y Position
-
-	LDA #%00010000	; Down?
-	BIT SWCHA
-	BNE P0SkipMoveDown
+	ifbit SWCHA_P0Up, SWCHA, P0SkipMoveUp ; Bits for pushed directions in SWCHA are *un*set
 	INC P0YPosFromBot
-P0SkipMoveDown
-
-	LDA #%00100000	; Up?
-	BIT SWCHA
-	BNE P0SkipMoveUp
-	DEC P0YPosFromBot
 P0SkipMoveUp
 
-	;; for left and right, we're gonna
-	;; set the horizontal speed, and then do
-	;; a single HMOVE.  We'll use X to hold the
-	;; horizontal speed, then store it in the
-	;; appropriate register
-
-	;; assume horiz speed will be zero
-	LDX #0
-
-	LDA #%01000000	; Left?
-	BIT SWCHA
-	BNE P0SkipMoveLeft
-	LDX #$10	; a 1 in the left nibble means go left
+	ifbit SWCHA_P0Left, SWCHA, P0SkipMoveLeft
+	DEC P0XPos
+	ifbit Status_SwordThrown, P0Status, P0SkipMoveLeft
+	DEC P0SwordX
 P0SkipMoveLeft
 
-	LDA #%10000000	; Right?
-	BIT SWCHA
-	BNE P0SkipMoveRight
-	LDX #$F0	; a -1 in the left nibble means go right...
+	ifbit SWCHA_P0Right, SWCHA, P0SkipMoveRight
+	INC P0XPos
+	ifbit Status_SwordThrown, P0Status, P0SkipMoveRight
+	INC P0SwordX
 P0SkipMoveRight
-			;(in 4 bits, using "two's complement
-			; notation", binary 1111 = decimal -1
-			; (which we write there as hex F --
-			; confused?))
 
-
-	STX HMP0	; set the move for Player 0
-	STX HMM0	; ... and Missile (sword) 0
 
 
 	;; Now, check P1
-
-	LDA #%00000001	; Down?
-	BIT SWCHA
-	BNE P1SkipMoveDown
+	ifbit SWCHA_P1Up, SWCHA, P1SkipMoveUp
 	INC P1YPosFromBot
-P1SkipMoveDown
-
-	LDA #%00000010	; Up?
-	BIT SWCHA
-	BNE P1SkipMoveUp
-	DEC P1YPosFromBot
 P1SkipMoveUp
 
-	LDX #0
-
-	LDA #%00000100	; Left?
-	BIT SWCHA
-	BNE P1SkipMoveLeft
-	LDX #$10	; a 1 in the left nibble means go left
+	ifbit SWCHA_P1Left, SWCHA, P1SkipMoveLeft
+	DEC P1XPos
+	ifbit Status_SwordThrown, P1Status, P1SkipMoveLeft
+	DEC P1SwordX
 P1SkipMoveLeft
 
-	LDA #%00001000	; Right?
-	BIT SWCHA
-	BNE P1SkipMoveRight
-	LDX #$F0	; a -1 in the left nibble means go right...
+	ifbit SWCHA_P1Right, SWCHA, P1SkipMoveRight
+	INC P1XPos
+	ifbit Status_SwordThrown, P1Status, P1SkipMoveRight
+	INC P1SwordX
 P1SkipMoveRight
-			;(in 4 bits, using "two's complement
-			; notation", binary 1111 = decimal -1
-			; (which we write there as hex F --
-			; confused?))
-
-
-	STX HMP1	; set the move for Player 0
-	STX HMM1	; ... and Missile (sword) 0
-
-
-	;; Use the button input for stance switching (mostly to test it)
-	;; Pressing the button will cycle through low-med-high stances
-	LDA INPT4		;read button input
-	BMI ButtonNotPressed	;skip if button not pressed
-	LDA #%00010000
-	BIT P0Status
-	BNE IsMid
-	LDA #%00100000
-	BIT P0Status
-	BNE IsHigh
-IsLow				; Go from low to mid...
+	
+	;; Use the Joystick for stance switching (pushing down cycles through stances)
+	ifbit SWCHA_P0Down, SWCHA, P0ButtonNotPressed
+	ifbit Status_MidStance, P0Status, P0IsMid
+	ifbit Status_HighStance, P0Status, P0IsHigh
+P0IsLow				; Go from low to mid...
+	LDA P0Status
+	AND #%11001111		; Clear both stance bits
+	ORA #%00010000		; Only set the "Mid" stance bit
+	JMP P0ChangedStance
+P0IsMid				; From mid to high...
 	LDA P0Status
 	AND #%11001111
-	ADC #%00010000
-	JMP ChangedStance
-IsMid				; From mid to high...
+	ORA #%00100000
+	JMP P0ChangedStance
+P0IsHigh			; And back to low.
 	LDA P0Status
 	AND #%11001111
-	ADC #%00100000
-	JMP ChangedStance
-IsHigh				; And back to low.
-	LDA P0Status
-	AND #%11001111
-	ADC #%00000000
-ChangedStance
+P0ChangedStance
 	STA P0Status
-ButtonNotPressed
+P0ButtonNotPressed
 
-	STA WSYNC
-	STA HMOVE
+	;; Use the Joystick for stance switching (pushing down cycles through stances)
+	ifbit SWCHA_P1Down, SWCHA, P1ButtonNotPressed
+	ifbit Status_MidStance, P1Status, P1IsMid
+	ifbit Status_HighStance, P1Status, P1IsHigh
+P1IsLow				; Go from low to mid...
+	LDA P1Status
+	AND #%11001111
+	ORA #%00010000
+	JMP P1ChangedStance
+P1IsMid				; From mid to high...
+	LDA P1Status
+	AND #%11001111
+	ORA #%00100000
+	JMP P1ChangedStance
+P1IsHigh				; And back to low.
+	LDA P1Status
+	AND #%11001111
+	ORA #%00000000
+P1ChangedStance
+	STA P1Status
+P1ButtonNotPressed
 
 CheckPlayerStatus
 	LDA P0Status		; Set reflection bit for both players according to their status byte
@@ -227,12 +292,8 @@ CheckPlayerStatus
 	LDA P1Status
 	STA REFP1
 P0PosStart
-	LDA #%00010000
-	BIT P0Status
-	BNE P0MidPos
-	LDA #%00100000
-	BIT P0Status
-	BNE P0HighPos
+	ifbit Status_MidStance, P0Status, P0MidPos
+	ifbit Status_HighStance, P0Status, P0HighPos
 P0LowPos
 	LDX #<FencerLow
 	STX P0Sprite
@@ -257,15 +318,13 @@ P0HighPos
 	LDA P0YPosFromBot
 	SBC #HighSwordOffset
 P0PosDone
-	STA P0MissileLine
+	TAX
+	ifbit Status_SwordThrown, P0Status, P1PosStart	   ; If the sword has been thrown, skip. Otherwise...
+	STX P0MissileLine				   ; set it to the appropriate line
 	CLC
 P1PosStart
-	LDA #%00010000
-	BIT P1Status
-	BNE P1MidPos
-	LDA #%00100000
-	BIT P1Status
-	BNE P1HighPos
+	ifbit Status_MidStance, P1Status, P1MidPos
+	ifbit Status_HighStance, P1Status, P1HighPos
 P1LowPos
 	LDX #<FencerLow
 	STX P1Sprite
@@ -290,25 +349,22 @@ P1HighPos
 	LDA P1YPosFromBot
 	SBC #HighSwordOffset
 P1PosDone
-	STA P1MissileLine
+	TAX
+	ifbit Status_SwordThrown, P1Status, P0Reset        ; If the sword has been thrown, skip. Otherwise...
+	STX P1MissileLine				   ; set it to the appropriate line
 	CLC
+
 P0SwordThrown
 P1SwordThrown			;TODO!
 
 P0Reset
-	LDA #%10000000
-	BIT P0Status
-	BEQ P0ResetDone
+	unlessbit Status_Reset, P0Status, P0ResetDone
 	STA WSYNC
 	STA RESP0
 P0ResetDone
-	LDA P0Status
-	AND #%01111111		; Clear reset bit
-	STA P0Status
+	clearbit Status_Reset, P0Status
 P1Reset
-	LDA #%10000000
-	BIT P0Status
-	BEQ P1ResetDone
+	unlessbit Status_Reset, P1Status, P1ResetDone
 	LDX #12
 	STA WSYNC
 	NOP			; 2
@@ -317,79 +373,63 @@ P1ResetLoop
 	DEX			; 2
 	BNE P1ResetLoop		; 2 (3)
 P1ResetDone
-	LDA P0Status
-	AND #%11110111		; Clear and write P1 reset bit
-	STA P0Status
+	clearbit Status_Reset, P1Status
 
-	;; Reset the swords every frame to account for possible turning around
+
+;;; Reset the swords every frame to account for possible turning around
 
 P0SwordReset
-	LDA #%01000000
-	BIT P0Status
-	BNE P0SwordSkip		; If sword has been thrown, don't position it with the player
-	STA HMCLR
-	LDX #2
-	STX RESMP0
-	LDA #0
-	STA RESMP0
-	LDA #%00001000
-	BIT P0Status
-	BNE P0Mirrored
-	LDA #$C0
+	ifbit Status_SwordThrown, P0Status, P0SwordSkip	; If sword has been thrown, don't position it with the player
+	LDX P0XPos
+	ifbit Status_Leftfacing, P0Status, P0Mirrored
+	TXA
+	ADC #9
+	TAX
 	JMP P0SwordDone
 P0Mirrored
-	LDA #$70
-	STA HMM0
-	STA WSYNC
-	STA HMOVE
-	LDA #$50
-	LDX #4
-	NOP
-P0HMOVE_Delay			; Don't change HMM0 for at least 24 cycles
-	DEX
-	BNE P0HMOVE_Delay
+	TXA
+	SBC #6
+	TAX
 P0SwordDone
-	STA HMM0
-	LDA #0
-	STA RESMP0
+	STX P0SwordX
 P0SwordSkip
 
 P1SwordReset
-	LDA #%01000000
-	BIT P1Status
-	BNE P1SwordSkip		; If sword has been thrown, don't position it with the player
-	LDX #2
-	STX RESMP1
-	LDA #0
-	STA RESMP1
-	LDA #%00001000
-	BIT P1Status
-	BNE P1Mirrored
-	LDA #$C0
+	ifbit Status_SwordThrown, P1Status, P1SwordSkip	; If sword has been thrown, don't position it with the player
+	LDX P1XPos
+	ifbit Status_Leftfacing, P1Status, P1Mirrored
+	TXA
+	ADC #9
+	TAX
 	JMP P1SwordDone
 P1Mirrored
-	LDA #$70
-	STA HMM1
-	STA WSYNC
-	STA HMOVE
-	LDA #$50
-	LDX #4
-P1HMOVE_Delay			; Don't change HMM0 for at least 24 cycles
-	DEX
-	BNE P1HMOVE_Delay
-	LDX #0
-	STX HMM0		; The mirror-HMOVE already applied the HMM0 value calculated above
+	TXA
+	SBC #6
+	TAX
 P1SwordDone
-	STA HMM1
-	LDA #0
-	STA RESMP1
+	STX P1SwordX
 P1SwordSkip
 
+
+;;; Move all the objects to their positions
+	LDX #0
+	LDA P0XPos
+	JSR PosObject
+	LDX #1
+	LDA P1XPos
+	JSR PosObject
+	LDX #2
+	LDA P0SwordX
+	JSR PosObject
+	LDX #3
+	LDA P1SwordX
+	JSR PosObject
+
 	STA WSYNC
 	STA HMOVE
-
-	LDA #0
-	STA GRP0Next
+	
+	LDA #0			; Make sure no old values from the bottom of the screen linger
+	STA GRP0Next		; in GRP0Next and GRP1Next
 	STA GRP1Next
 
 	;; For Testing only!
@@ -408,6 +448,8 @@ P1SwordSkip
 	LDA #>PF2Center
 	STA PF2Base+1
 
+
+	LDY #0
 WaitForVblankEnd
 	LDA INTIM
 	BNE WaitForVblankEnd
@@ -502,10 +544,10 @@ P1Missile
 	PHP			; [85] + 3
 
 				; [90]
-	DEC $2D			; YARRR! Here be booty! 17 cycles! \o/
 	LDA #0
 	STA ENAM0
 	STA ENAM1
+	DEC $2D			; YARRR! Here be booty! 17 cycles! \o/
 	NOP
 	NOP
 	
