@@ -69,7 +69,7 @@ ClearMem
 	STA COLUP0
 	LDA #$1E
 	STA COLUP1
-	LDA #1
+	LDA #1			; Activate playfield Reflection
 	STA CTRLPF
 ;Setting some variables...
 	LDA #40
@@ -499,12 +499,12 @@ P1Missile
 
 				; [90]
 	DEC $2D			; YARRR! Here be booty! 17 cycles! \o/
-	NOP
-	NOP
 	LDA #0
 	STA ENAM0
 	STA ENAM1
-
+	NOP
+	NOP
+	
 	;; End Skipdraw
 	
 	;; Assumptions:
