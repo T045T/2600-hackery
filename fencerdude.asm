@@ -388,6 +388,10 @@ P1SwordSkip
 	STA WSYNC
 	STA HMOVE
 
+	LDA #0
+	STA GRP0Next
+	STA GRP1Next
+
 	;; For Testing only!
 	LDA #<PF0Center
 	STA PF0Base
