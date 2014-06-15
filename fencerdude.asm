@@ -30,7 +30,6 @@
 	IF .INDEX == 7
 	{1} #%10000000
 	ENDIF
-	ECHO "MASK: " , MASK
 	ENDM
 
 	MAC do_with_bitmask_inv
@@ -213,18 +212,22 @@ MainLoop
 P0SkipMoveUp
 
 	ifbit SWCHA_P0Left, SWCHA, P0SkipMoveLeft
+	LDA P0XPos
+	CMP #4
+	BEQ P0SkipMoveLeft
 	DEC P0XPos
 	ifbit Status_SwordThrown, P0Status, P0SkipMoveLeft
 	DEC P0SwordX
 P0SkipMoveLeft
 
 	ifbit SWCHA_P0Right, SWCHA, P0SkipMoveRight
+	LDA P0XPos
+	CMP #158
+	BEQ P0SkipMoveRight
 	INC P0XPos
 	ifbit Status_SwordThrown, P0Status, P0SkipMoveRight
 	INC P0SwordX
 P0SkipMoveRight
-
-
 
 	;; Now, check P1
 	ifbit SWCHA_P1Up, SWCHA, P1SkipMoveUp
@@ -232,16 +235,24 @@ P0SkipMoveRight
 P1SkipMoveUp
 
 	ifbit SWCHA_P1Left, SWCHA, P1SkipMoveLeft
+	LDA P1XPos
+	CMP #4
+	BEQ P1SkipMoveLeft
 	DEC P1XPos
 	ifbit Status_SwordThrown, P1Status, P1SkipMoveLeft
 	DEC P1SwordX
 P1SkipMoveLeft
-
+	
 	ifbit SWCHA_P1Right, SWCHA, P1SkipMoveRight
+	LDA P1XPos
+	CMP #158
+	BEQ P1SkipMoveRight
 	INC P1XPos
 	ifbit Status_SwordThrown, P1Status, P1SkipMoveRight
 	INC P1SwordX
 P1SkipMoveRight
+
+	CLC			; Clear Carry bit, so it doesn't confuse any of the following calculations
 	
 	;; Use the Joystick for stance switching (pushing down cycles through stances)
 	ifbit SWCHA_P0Down, SWCHA, P0ButtonNotPressed
@@ -412,17 +423,21 @@ P1SwordSkip
 
 
 ;;; Move all the objects to their positions
-	LDX #0
+PositionP0
 	LDA P0XPos
+	LDX #0
 	JSR PosObject
-	LDX #1
+PositionP1
 	LDA P1XPos
+	LDX #1
 	JSR PosObject
-	LDX #2
+PositionM0
 	LDA P0SwordX
+	LDX #2
 	JSR PosObject
-	LDX #3
+PositionM1
 	LDA P1SwordX
+	LDX #3
 	JSR PosObject
 
 	STA WSYNC
@@ -547,22 +562,10 @@ P1Missile
 	LDA #0
 	STA ENAM0
 	STA ENAM1
-	DEC $2D			; YARRR! Here be booty! 17 cycles! \o/
+	DEC $2D			; YARRR! Here be booty! 9 cycles! \o/
 	NOP
 	NOP
 	
-	;; End Skipdraw
-	
-	;; Assumptions:
-	;; X holds current scanline (counted from bottom, starting at 95)
-
-	;; What's going on:
-	;; P[0,1]YPosFromBot hold the lines where the two player sprites
-	;; start. If we're on that line, put 14 into P[0,1]LinesLeft, since
-	;; the sprites are 14 lines high. The following routine will draw
-	;; one line of each player and decrement the lines left.
-	;; To save cycles, P0LinesLeft is put into the Y register by the end
-	;; of this routine, so DrawPlayers won't have to load it
 
 	;; Assumptions:
 	;; The top of the stack points at the next line's value for
