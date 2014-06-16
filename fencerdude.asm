@@ -87,6 +87,7 @@
 	do_with_bitmask_inv AND, {1}
 	STA {2}
 	ENDM
+	
 ;;; Bit Names:
 SWCHA_P1Up = 0
 SWCHA_P1Down = 1
@@ -174,6 +175,11 @@ ClearMem
 	STA P0YPosFromBot	;Initial Y Position
 	STA P1YPosFromBot
 
+	LDA #16
+	STA P0XPos
+	LDA #144
+	STA P1XPos		; Initial X Positions
+	
 	LDA #$30
 	STA NUSIZ0	; Missile is 8 color clocks wide, player normal
 	STA NUSIZ1	; Missile is 8 color clocks wide, player normal
