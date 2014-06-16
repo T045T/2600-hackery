@@ -402,6 +402,7 @@ P0SwordReset
 P0Mirrored
 	TXA
 	SBC #6
+	CLC			; Clear Carry bit so the subtraction above doesn't confuse P1's sword
 	TAX
 P0SwordDone
 	STX P0SwordX
@@ -418,6 +419,7 @@ P1SwordReset
 P1Mirrored
 	TXA
 	SBC #6
+	CLC			; Clear Carry bit so the subtraction above doesn't confuse anything down the line
 	TAX
 P1SwordDone
 	STX P1SwordX
