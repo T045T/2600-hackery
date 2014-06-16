@@ -219,7 +219,7 @@ P0SkipMoveUp
 
 	ifbit SWCHA_P0Left, SWCHA, P0SkipMoveLeft
 	LDA P0XPos
-	CMP #8
+	CMP #9
 	BEQ P0SkipMoveLeft
 	DEC P0XPos
 	ifbit Status_SwordThrown, P0Status, P0SkipMoveLeft
@@ -242,7 +242,7 @@ P1SkipMoveUp
 
 	ifbit SWCHA_P1Left, SWCHA, P1SkipMoveLeft
 	LDA P1XPos
-	CMP #8
+	CMP #9
 	BEQ P1SkipMoveLeft
 	DEC P1XPos
 	ifbit Status_SwordThrown, P1Status, P1SkipMoveLeft
@@ -432,19 +432,19 @@ P1SwordSkip
 PositionP0
 	LDA P0XPos
 	LDX #0
-	JSR PosElement
+	JSR PosPlayer
 PositionP1
 	LDA P1XPos
 	LDX #1
-	JSR PosElement
+	JSR PosPlayer
 PositionM0
 	LDA P0SwordX
-	LDX #2
-	JSR PosElement
+	LDX #0
+	JSR PosMissile
 PositionM1
 	LDA P1SwordX
-	LDX #3
-	JSR PosElement
+	LDX #1
+	JSR PosMissile
 
 	STA WSYNC
 	STA HMOVE
@@ -634,34 +634,57 @@ OverScanWait
 	;; Commented Version from http://www.qotile.net/minidig/disassembly/unfinished.zip
 	;;
 	;; Positions an object horizontally
-	;; Inputs: A = Desired position.
-	;; X = Desired object to be positioned (0-5).
+	;; Inputs: A = Desired position. (left screen edge is 9)
+	;; X = Desired object to be positioned (Player / Missile 0 or 1, use appropriate subroutine for each)
 	;; scanlines: If control comes on or before cycle 73 then 1 scanline is consumed.
 	;; If control comes after cycle 73 then 2 scanlines are consumed.
 	;; Outputs: X = unchanged
 	;; A = Y = Fine Adjustment value.
-PosElement SUBROUTINE
-       CMP #$11                 ; Desired position >= $11
-       BCS PositionOk           ; Y:
-       SBC #$04                 ; Correct troubles with early RESP
-       BCS PositionOk           ;
-       ADC #$A5                 ;
-PositionOk
-       STA WSYNC                ;
+PosPlayer SUBROUTINE
+	CMP #$11                 ; Desired position >= $11
+	BCS PlayerPositionOk           ; Y:
+	SBC #$05                 ; Correct troubles with early RESP
+	BCS PlayerPositionOk           ;
+	ADC #$A5                 ;
+PlayerPositionOk
+	STA WSYNC                ;
 .wait
-       SBC #$0F                 ;
-       BCS .wait                ; RESP loop
-       
-       EOR #$07                 ;
-       ASL                      ;
-       ASL                      ;
-       ASL                      ;
-       ASL                      ;
-       TAY                      ; Y-> correct HMXX value
-       STA    RESP0,X           ; Position it!
+	SBC #$0F                 ;
+	BCS .wait                ; RESP loop
+	
+	EOR #$07                 ;
+	ASL                      ;
+	ASL                      ;
+	ASL                      ;
+	ASL                      ;
+	TAY                      ; Y-> correct HMXX value
+	STA RESP0,X           ; Position it!
 	STA HMP0,X
-       STA    WSYNC             ;
-       RTS                      ; done, that's all!
+	STA WSYNC             ;
+	RTS                      ; done, that's all!
+
+PosMissile SUBROUTINE
+	CMP #$10                 ; Desired position >= $11
+	BCS MissilePositionOk    ; Y:
+	SBC #$04                 ; Correct troubles with early RESP
+	BCS MissilePositionOk    ;
+	ADC #$A5                 ;
+MissilePositionOk
+	STA WSYNC                ;
+.wait
+	SBC #$0F                 ;
+	BCS .wait                ; RESP loop
+	
+	EOR #$07                 ;
+	ASL                      ;
+	ASL                      ;
+	ASL                      ;
+	ASL                      ;
+	TAY                      ; Y-> correct HMXX value
+	STA RESM0,X           ; Position it!
+	STA HMM0,X
+	STA    WSYNC             ;
+	RTS                      ; done, that's all!
 	
 	org $FD00
 FencerLow ; 14 Lines - Upside-Down because it's easier to draw that way
