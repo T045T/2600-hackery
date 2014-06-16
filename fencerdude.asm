@@ -219,7 +219,7 @@ P0SkipMoveUp
 
 	ifbit SWCHA_P0Left, SWCHA, P0SkipMoveLeft
 	LDA P0XPos
-	CMP #4
+	CMP #8
 	BEQ P0SkipMoveLeft
 	DEC P0XPos
 	ifbit Status_SwordThrown, P0Status, P0SkipMoveLeft
@@ -228,7 +228,7 @@ P0SkipMoveLeft
 
 	ifbit SWCHA_P0Right, SWCHA, P0SkipMoveRight
 	LDA P0XPos
-	CMP #158
+	CMP #160
 	BEQ P0SkipMoveRight
 	INC P0XPos
 	ifbit Status_SwordThrown, P0Status, P0SkipMoveRight
@@ -242,7 +242,7 @@ P1SkipMoveUp
 
 	ifbit SWCHA_P1Left, SWCHA, P1SkipMoveLeft
 	LDA P1XPos
-	CMP #4
+	CMP #8
 	BEQ P1SkipMoveLeft
 	DEC P1XPos
 	ifbit Status_SwordThrown, P1Status, P1SkipMoveLeft
@@ -251,7 +251,7 @@ P1SkipMoveLeft
 	
 	ifbit SWCHA_P1Right, SWCHA, P1SkipMoveRight
 	LDA P1XPos
-	CMP #158
+	CMP #160
 	BEQ P1SkipMoveRight
 	INC P1XPos
 	ifbit Status_SwordThrown, P1Status, P1SkipMoveRight
@@ -432,19 +432,19 @@ P1SwordSkip
 PositionP0
 	LDA P0XPos
 	LDX #0
-	JSR PosObject
+	JSR PosElement
 PositionP1
 	LDA P1XPos
 	LDX #1
-	JSR PosObject
+	JSR PosElement
 PositionM0
 	LDA P0SwordX
 	LDX #2
-	JSR PosObject
+	JSR PosElement
 PositionM1
 	LDA P1SwordX
 	LDX #3
-	JSR PosObject
+	JSR PosElement
 
 	STA WSYNC
 	STA HMOVE
@@ -566,8 +566,8 @@ P1Missile
 
 				; [90]
 	LDA #0
-	STA ENAM0
-	STA ENAM1
+	STA ENAM0		; Disable Missiles (Swords) during the second line, so they're
+	STA ENAM1		; nice and thin
 	DEC $2D			; YARRR! Here be booty! 9 cycles! \o/
 	NOP
 	NOP
@@ -630,8 +630,8 @@ OverScanWait
 	BNE OverScanWait
 	JMP  MainLoop
 
-	;; Code from http://www.biglist.com/lists/stella/archives/200403/msg00260.html
-	;; Thanks to R. Mundschau!
+	;; Code from BattleZone ( http://www.computerarcheology.com/wiki/wiki/Atari2600/BattleZone/Code )
+	;; Commented Version from http://www.qotile.net/minidig/disassembly/unfinished.zip
 	;;
 	;; Positions an object horizontally
 	;; Inputs: A = Desired position.
@@ -639,29 +639,30 @@ OverScanWait
 	;; scanlines: If control comes on or before cycle 73 then 1 scanline is consumed.
 	;; If control comes after cycle 73 then 2 scanlines are consumed.
 	;; Outputs: X = unchanged
-	;; A = Fine Adjustment value.
-	;; Y = the "remainder" of the division by 15 minus an additional 15.
-	;; control is returned on cycle 6 of the next scanline.
-PosObject SUBROUTINE
-
-	STA WSYNC		; 00 Sync to start of scanline.
-	SEC			; 02 Set the carry flag so no borrow will be applied during the division.
-divideby15
-	SBC #15			; 04 ; Waste the necessary amount of time dividing X-pos by 15!
-	BCS divideby15		; 06/07 - 11/16/21/26/31/36/41/46/51/56/61/66
-
-	TAY			; 08 ; At this point the value in A is -1 to -15. In this code I use a table
-				; to quickly convert that value to the fine adjust value needed.
-	LDA fineAdjustTable,Y	; 13 -> Consume 5 cycles by guaranteeing we cross a page boundary
-				; In your own code you may wish to consume only 4.
-	STA HMP0,X		; 17 Store the fine adjustment value.
-
-	STA RESP0,X		; 21/ 26/31/36/41/46/51/56/61/66/71 - Set the rough position.
-
-	STA WSYNC
-	RTS
-
-
+	;; A = Y = Fine Adjustment value.
+PosElement SUBROUTINE
+       CMP #$11                 ; Desired position >= $11
+       BCS PositionOk           ; Y:
+       SBC #$04                 ; Correct troubles with early RESP
+       BCS PositionOk           ;
+       ADC #$A5                 ;
+PositionOk
+       STA WSYNC                ;
+.wait
+       SBC #$0F                 ;
+       BCS .wait                ; RESP loop
+       
+       EOR #$07                 ;
+       ASL                      ;
+       ASL                      ;
+       ASL                      ;
+       ASL                      ;
+       TAY                      ; Y-> correct HMXX value
+       STA    RESP0,X           ; Position it!
+	STA HMP0,X
+       STA    WSYNC             ;
+       RTS                      ; done, that's all!
+	
 	org $FD00
 FencerLow ; 14 Lines - Upside-Down because it's easier to draw that way
 	.byte %00000000
@@ -1008,25 +1009,6 @@ PF2Center
 	.byte %11000110
 	.byte %11000110
 	.byte %11000110
-
-	org $FF00
-fineAdjustBegin		; table for fine adjustment of X positioning
-	.byte %01110000	; Left 7
-	.byte %01100000 ; Left 6
-	.byte %01010000 ; Left 5
-	.byte %01000000 ; Left 4
-	.byte %00110000 ; Left 3
-	.byte %00100000 ; Left 2
-	.byte %00010000 ; Left 1
-	.byte %00000000 ; No movement.
-	.byte %11110000 ; Right 1
-	.byte %11100000 ; Right 2
-	.byte %11010000 ; Right 3
-	.byte %11000000 ; Right 4
-	.byte %10110000 ; Right 5
-	.byte %10100000 ; Right 6
-	.byte %10010000 ; Right 7
-fineAdjustTable = fineAdjustBegin - %11110001 ; NOTE: %11110001 = -15
 
 	org $FFFC
 	.word Start		; NMI
