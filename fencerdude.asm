@@ -218,6 +218,7 @@ MainLoop
 P0SkipMoveUp
 
 	ifbit SWCHA_P0Left, SWCHA, P0SkipMoveLeft
+	setbit Status_Leftfacing, P0Status 
 	LDA P0XPos
 	CMP #9
 	BEQ P0SkipMoveLeft
@@ -225,6 +226,7 @@ P0SkipMoveUp
 P0SkipMoveLeft
 
 	ifbit SWCHA_P0Right, SWCHA, P0SkipMoveRight
+	clearbit Status_Leftfacing, P0Status
 	LDA P0XPos
 	CMP #160
 	BEQ P0SkipMoveRight
@@ -237,6 +239,7 @@ P0SkipMoveRight
 P1SkipMoveUp
 
 	ifbit SWCHA_P1Left, SWCHA, P1SkipMoveLeft
+	setbit Status_Leftfacing, P1Status
 	LDA P1XPos
 	CMP #9
 	BEQ P1SkipMoveLeft
@@ -244,6 +247,7 @@ P1SkipMoveUp
 P1SkipMoveLeft
 	
 	ifbit SWCHA_P1Right, SWCHA, P1SkipMoveRight
+	clearbit Status_Leftfacing, P1Status
 	LDA P1XPos
 	CMP #160
 	BEQ P1SkipMoveRight
