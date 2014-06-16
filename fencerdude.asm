@@ -222,8 +222,6 @@ P0SkipMoveUp
 	CMP #9
 	BEQ P0SkipMoveLeft
 	DEC P0XPos
-	ifbit Status_SwordThrown, P0Status, P0SkipMoveLeft
-	DEC P0SwordX
 P0SkipMoveLeft
 
 	ifbit SWCHA_P0Right, SWCHA, P0SkipMoveRight
@@ -231,8 +229,6 @@ P0SkipMoveLeft
 	CMP #160
 	BEQ P0SkipMoveRight
 	INC P0XPos
-	ifbit Status_SwordThrown, P0Status, P0SkipMoveRight
-	INC P0SwordX
 P0SkipMoveRight
 
 	;; Now, check P1
@@ -245,8 +241,6 @@ P1SkipMoveUp
 	CMP #9
 	BEQ P1SkipMoveLeft
 	DEC P1XPos
-	ifbit Status_SwordThrown, P1Status, P1SkipMoveLeft
-	DEC P1SwordX
 P1SkipMoveLeft
 	
 	ifbit SWCHA_P1Right, SWCHA, P1SkipMoveRight
@@ -254,8 +248,6 @@ P1SkipMoveLeft
 	CMP #160
 	BEQ P1SkipMoveRight
 	INC P1XPos
-	ifbit Status_SwordThrown, P1Status, P1SkipMoveRight
-	INC P1SwordX
 P1SkipMoveRight
 
 	CLC			; Clear Carry bit, so it doesn't confuse any of the following calculations
