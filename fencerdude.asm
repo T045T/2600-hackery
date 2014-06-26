@@ -228,7 +228,7 @@ P0SkipMoveLeft
 	ifbit SWCHA_P0Right, SWCHA, P0SkipMoveRight
 	clearbit Status_Leftfacing, P0Status
 	LDA P0XPos
-	CMP #160
+	CMP #161
 	BEQ P0SkipMoveRight
 	INC P0XPos
 P0SkipMoveRight
@@ -249,7 +249,7 @@ P1SkipMoveLeft
 	ifbit SWCHA_P1Right, SWCHA, P1SkipMoveRight
 	clearbit Status_Leftfacing, P1Status
 	LDA P1XPos
-	CMP #160
+	CMP #161
 	BEQ P1SkipMoveRight
 	INC P1XPos
 P1SkipMoveRight
