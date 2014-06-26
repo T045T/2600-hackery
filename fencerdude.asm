@@ -2,7 +2,6 @@
 
 	processor 6502
 	include vcs.h
-	org $F000
 
 	MAC DO_WITH_BITMASK
 .INDEX SET {2}
@@ -87,7 +86,10 @@
 	do_with_bitmask_inv AND, {1}
 	STA {2}
 	ENDM
-	
+
+
+	SEG.U variables
+	ORG $80
 ;;; Bit Names:
 SWCHA_P1Up = 0
 SWCHA_P1Down = 1
@@ -102,53 +104,69 @@ LowSwordOffset = 8
 MidSwordOffset = 4
 HighSwordOffset = 0
 
-P0YPosFromBot = $80;
-P0LinesLeft = $81;
-P0MissileLine = $82
+P0InitialX = 16
+P1InitialX = 144
+	
+P0YFromBot	.byte
+P0LinesLeft 	.byte
+P0SwordYFromBot	.byte
+P0XPos 		.byte
+P0SwordX 	.byte
 
-P1YPosFromBot = $83
-P1LinesLeft = $84
-P1MissileLine = $85
+P1YFromBot 	.byte
+P1LinesLeft 	.byte
+P1SwordYFromBot	.byte
+P1XPos 		.byte
+P1SwordX 	.byte
 
-;; these will hold the values that are pushed to the corresponding registers on the next scanline, so the memory fetch and related calculations don't cause us to miss the start of the line
-GRP0Next = $86
-GRP1Next = $87
-PF0Next = $88
-PF1Next = $89
-PF2Next = $8A
-ENAM0Next = $8B
-ENAM1Next = $8C
+P0Status1 	.byte
+P1Status1 	.byte
 
-P0ArrowPos = $8D
-P1ArrowPos = $8E
-
-P0Sprite = $8F
-P1Sprite = $91
-
-P0Status = $93
 			;;  D1D0 : Current animation frame (4 frames each) - always back to 0 for standing, make sword shorter for the other frames
-Status_Jumping = 2	;;  D2   : Jumping?
-Status_Leftfacing = 3	;;  D3 : 0 if facing right, 1 if left (aligned to simply dump P0Status into REFP0)
+Status1_Jumping = 2	;;  D2   : Jumping?
+Status1_Leftfacing = 3	;;  D3 : 0 if facing right, 1 if left (aligned to simply dump P0Status1 into REFP0)
 			;;  D5D4 : Counter for stance:
-Status_JumpKicking = 4	;;   0 0 : Low - if Jumping, DIVE!
-Status_MidStance = 4	;;   0 1 : Med - if Jumping, KICK!
-Status_HighStance = 5	;;   1 0 : High
-Status_SwordThrown = 6	;;  D6: SwordThrown (if 1, don't touch P0MissileLine or HMM0 for Joystick events, sword is taken care of by physics - haha, like we have physics)
-Status_Reset = 7	;;  D7: ResetPlayer (if 1, reset Player to his edge of the screen)
+Status1_JumpKicking = 4	;;   0 0 : Low - if Jumping, DIVE!
+Status1_MidStance = 4	;;   0 1 : Med - if Jumping, KICK!
+Status1_HighStance = 5	;;   1 0 : High
+Status1_SwordThrown = 6	;;  D6: SwordThrown (if 1, don't touch P0SwordYFromBot or HMM0 for Joystick events, sword is taken care of by physics - haha, like we have physics)
+Status1_Reset = 7	;;  D7: ResetPlayer (if 1, reset Player to his edge of the screen)
 			;;  From left to right, i.e. foo = #%D7D6D5D4D3D2D1D0
-P1Status = $94
 
-CurrentLine = $95
-PF0Base = $96
-PF1Base = $98
-PF2Base = $9A
-CurrentScreen = $9C		; Incremented when moving one screen to the right, decremented when moving to the left
+P0Status2	.byte
+P1Status2	.byte
+
+Status2_Stance_Debounce = 0
+
+
+;;; Graphics variables
+
+;;; these hold the values that are pushed to the corresponding registers on the next scanline, so the memory fetch
+;;; and related calculations don't cause us to miss the start of the line
+GRP0Next 	.byte
+GRP1Next 	.byte
+PF0Next 	.byte
+PF1Next 	.byte
+PF2Next 	.byte
+ENAM0Next 	.byte
+ENAM1Next 	.byte
+
+;;; These hold pointers to the sprites, stored so the pointer location is the bottom of the sprite
+P0Sprite 	.word
+P1Sprite 	.word
+
+PF0Base 	.word
+PF1Base 	.word
+PF2Base 	.word
+
+CurrentLine 	.byte
+CurrentScreen 	.byte		; Incremented when moving one screen to the right, decremented when moving to the left
 				; Levels are symmetrical, so if CurrentScreen is negative, use NOT(CurrentScreen)+1 as screen index
-P0XPos = $9D
-P1XPos = $9E
-P0SwordX = $9F
-P1SwordX = $A0
 
+
+	SEG code
+	ORG $F000
+	
 ;generic start up stuff...
 Start
 	SEI
@@ -172,12 +190,12 @@ ClearMem
 	STA CTRLPF
 ;Setting some variables...
 	LDA #40
-	STA P0YPosFromBot	;Initial Y Position
-	STA P1YPosFromBot
+	STA P0YFromBot	;Initial Y Position
+	STA P1YFromBot
 
-	LDA #16
+	LDA #P0InitialX
 	STA P0XPos
-	LDA #144
+	LDA #P1InitialX
 	STA P1XPos		; Initial X Positions
 	
 	LDA #$30
@@ -185,9 +203,9 @@ ClearMem
 	STA NUSIZ1	; Missile is 8 color clocks wide, player normal
 
 	LDA #%10000000		; Reset P0
-	STA P0Status
+	STA P0Status1
 	LDA #%10001000		; Reset P1, and have him reflected
-	STA P1Status
+	STA P1Status1
 
 
 ;VSYNC time
@@ -203,22 +221,16 @@ MainLoop
 	STA VSYNC
 
 
-;Main Computations; check down, up, left, right
-;general idea is to do a BIT compare to see if
-;a certain direction is pressed, and skip the value
-;change if so
-
-;
-;Not the most efficient code, but gets the job done,
-;including diagonal movement
-;
+;;; Controls:
+;;; Just check for each direction whether the Joystick has been pushed in that direction and manipulate
+;;; Player coordinates accordingly. 
 
 	ifbit SWCHA_P0Up, SWCHA, P0SkipMoveUp ; Bits for pushed directions in SWCHA are *un*set
-	INC P0YPosFromBot
+	INC P0YFromBot
 P0SkipMoveUp
 
 	ifbit SWCHA_P0Left, SWCHA, P0SkipMoveLeft
-	setbit Status_Leftfacing, P0Status 
+	setbit Status1_Leftfacing, P0Status1 
 	LDA P0XPos
 	CMP #9
 	BEQ P0SkipMoveLeft
@@ -226,7 +238,7 @@ P0SkipMoveUp
 P0SkipMoveLeft
 
 	ifbit SWCHA_P0Right, SWCHA, P0SkipMoveRight
-	clearbit Status_Leftfacing, P0Status
+	clearbit Status1_Leftfacing, P0Status1
 	LDA P0XPos
 	CMP #161
 	BEQ P0SkipMoveRight
@@ -235,11 +247,11 @@ P0SkipMoveRight
 
 	;; Now, check P1
 	ifbit SWCHA_P1Up, SWCHA, P1SkipMoveUp
-	INC P1YPosFromBot
+	INC P1YFromBot
 P1SkipMoveUp
 
 	ifbit SWCHA_P1Left, SWCHA, P1SkipMoveLeft
-	setbit Status_Leftfacing, P1Status
+	setbit Status1_Leftfacing, P1Status1
 	LDA P1XPos
 	CMP #9
 	BEQ P1SkipMoveLeft
@@ -247,7 +259,7 @@ P1SkipMoveUp
 P1SkipMoveLeft
 	
 	ifbit SWCHA_P1Right, SWCHA, P1SkipMoveRight
-	clearbit Status_Leftfacing, P1Status
+	clearbit Status1_Leftfacing, P1Status1
 	LDA P1XPos
 	CMP #161
 	BEQ P1SkipMoveRight
@@ -255,64 +267,76 @@ P1SkipMoveLeft
 P1SkipMoveRight
 
 	CLC			; Clear Carry bit, so it doesn't confuse any of the following calculations
+
 	
-	;; Use the Joystick for stance switching (pushing down cycles through stances)
-	ifbit SWCHA_P0Down, SWCHA, P0ButtonNotPressed
-	ifbit Status_MidStance, P0Status, P0IsMid
-	ifbit Status_HighStance, P0Status, P0IsHigh
+;;; Use the Joystick for stance switching (pushing down cycles through stances)
+
+	ifbit SWCHA_P0Down, SWCHA, P0SkipStanceSwitch
+	ifbit Status2_Stance_Debounce, P0Status2, P0StanceSwitchDone
+	ifbit Status1_MidStance, P0Status1, P0IsMid
+	ifbit Status1_HighStance, P0Status1, P0IsHigh
 P0IsLow				; Go from low to mid...
-	LDA P0Status
+	LDA P0Status1
 	AND #%11001111		; Clear both stance bits
 	ORA #%00010000		; Only set the "Mid" stance bit
 	JMP P0ChangedStance
 P0IsMid				; From mid to high...
-	LDA P0Status
+	LDA P0Status1
 	AND #%11001111
 	ORA #%00100000
 	JMP P0ChangedStance
 P0IsHigh			; And back to low.
-	LDA P0Status
+	LDA P0Status1
 	AND #%11001111
 P0ChangedStance
-	STA P0Status
-P0ButtonNotPressed
+	STA P0Status1
+	setbit Status2_Stance_Debounce, P0Status2
+	JMP P0StanceSwitchDone
+P0SkipStanceSwitch
+	clearbit Status2_Stance_Debounce, P0Status2
+P0StanceSwitchDone
 
 	;; Use the Joystick for stance switching (pushing down cycles through stances)
-	ifbit SWCHA_P1Down, SWCHA, P1ButtonNotPressed
-	ifbit Status_MidStance, P1Status, P1IsMid
-	ifbit Status_HighStance, P1Status, P1IsHigh
+	ifbit SWCHA_P1Down, SWCHA, P1SkipStanceSwitch
+	ifbit Status2_Stance_Debounce, P1Status2, P1StanceSwitchDone
+	ifbit Status1_MidStance, P1Status1, P1IsMid
+	ifbit Status1_HighStance, P1Status1, P1IsHigh
 P1IsLow				; Go from low to mid...
-	LDA P1Status
+	LDA P1Status1
 	AND #%11001111
 	ORA #%00010000
 	JMP P1ChangedStance
 P1IsMid				; From mid to high...
-	LDA P1Status
+	LDA P1Status1
 	AND #%11001111
 	ORA #%00100000
 	JMP P1ChangedStance
 P1IsHigh				; And back to low.
-	LDA P1Status
+	LDA P1Status1
 	AND #%11001111
 	ORA #%00000000
 P1ChangedStance
-	STA P1Status
-P1ButtonNotPressed
-
+	STA P1Status1
+	setbit Status2_Stance_Debounce, P1Status2
+	JMP P1StanceSwitchDone
+P1SkipStanceSwitch
+	clearbit Status2_Stance_Debounce, P1Status2
+P1StanceSwitchDone
+	
 CheckPlayerStatus
-	LDA P0Status		; Set reflection bit for both players according to their status byte
+	LDA P0Status1		; Set reflection bit for both players according to their status byte
 	STA REFP0
-	LDA P1Status
+	LDA P1Status1
 	STA REFP1
 P0PosStart
-	ifbit Status_MidStance, P0Status, P0MidPos
-	ifbit Status_HighStance, P0Status, P0HighPos
+	ifbit Status1_MidStance, P0Status1, P0MidPos
+	ifbit Status1_HighStance, P0Status1, P0HighPos
 P0LowPos
 	LDX #<FencerLow
 	STX P0Sprite
 	LDX #>FencerLow
 	STX P0Sprite+1
-	LDA P0YPosFromBot
+	LDA P0YFromBot
 	SBC #LowSwordOffset
 	JMP P0PosDone
 P0MidPos
@@ -320,7 +344,7 @@ P0MidPos
 	STX P0Sprite
 	LDX #>FencerMid
 	STX P0Sprite+1
-	LDA P0YPosFromBot
+	LDA P0YFromBot
 	SBC #MidSwordOffset
 	JMP P0PosDone
 P0HighPos
@@ -328,22 +352,22 @@ P0HighPos
 	STX P0Sprite
 	LDX #>FencerHigh
 	STX P0Sprite+1
-	LDA P0YPosFromBot
+	LDA P0YFromBot
 	SBC #HighSwordOffset
 P0PosDone
 	TAX
-	ifbit Status_SwordThrown, P0Status, P1PosStart	   ; If the sword has been thrown, skip. Otherwise...
-	STX P0MissileLine				   ; set it to the appropriate line
+	ifbit Status1_SwordThrown, P0Status1, P1PosStart	   ; If the sword has been thrown, skip. Otherwise...
+	STX P0SwordYFromBot				   ; set it to the appropriate line
 	CLC
 P1PosStart
-	ifbit Status_MidStance, P1Status, P1MidPos
-	ifbit Status_HighStance, P1Status, P1HighPos
+	ifbit Status1_MidStance, P1Status1, P1MidPos
+	ifbit Status1_HighStance, P1Status1, P1HighPos
 P1LowPos
 	LDX #<FencerLow
 	STX P1Sprite
 	LDX #>FencerLow
 	STX P1Sprite+1
-	LDA P1YPosFromBot
+	LDA P1YFromBot
 	SBC #LowSwordOffset
 	JMP P1PosDone
 P1MidPos
@@ -351,7 +375,7 @@ P1MidPos
 	STX P1Sprite
 	LDX #>FencerMid
 	STX P1Sprite+1
-	LDA P1YPosFromBot
+	LDA P1YFromBot
 	SBC #MidSwordOffset
 	JMP P1PosDone
 P1HighPos
@@ -359,42 +383,34 @@ P1HighPos
 	STX P1Sprite
 	LDX #>FencerHigh
 	STX P1Sprite+1
-	LDA P1YPosFromBot
+	LDA P1YFromBot
 	SBC #HighSwordOffset
 P1PosDone
 	TAX
-	ifbit Status_SwordThrown, P1Status, P0Reset        ; If the sword has been thrown, skip. Otherwise...
-	STX P1MissileLine				   ; set it to the appropriate line
+	ifbit Status1_SwordThrown, P1Status1, P0Reset        ; If the sword has been thrown, skip. Otherwise...
+	STX P1SwordYFromBot				   ; set it to the appropriate line
 	CLC
 
-P0SwordThrown
-P1SwordThrown			;TODO!
-
 P0Reset
-	unlessbit Status_Reset, P0Status, P0ResetDone
-	STA WSYNC
-	STA RESP0
+	unlessbit Status1_Reset, P0Status1, P0ResetDone
+	LDA #P0InitialX
+	STA P0XPos
 P0ResetDone
-	clearbit Status_Reset, P0Status
+	clearbit Status1_Reset, P0Status1
 P1Reset
-	unlessbit Status_Reset, P1Status, P1ResetDone
-	LDX #12
-	STA WSYNC
-	NOP			; 2
-	NOP			; 2
-P1ResetLoop
-	DEX			; 2
-	BNE P1ResetLoop		; 2 (3)
+	unlessbit Status1_Reset, P1Status1, P1ResetDone
+	LDA #P1InitialX
+	STA P1XPos
 P1ResetDone
-	clearbit Status_Reset, P1Status
+	clearbit Status1_Reset, P1Status1
 
 
 ;;; Reset the swords every frame to account for possible turning around
 
 P0SwordReset
-	ifbit Status_SwordThrown, P0Status, P0SwordSkip	; If sword has been thrown, don't position it with the player
+	ifbit Status1_SwordThrown, P0Status1, P0SwordSkip	; If sword has been thrown, don't position it with the player
 	LDX P0XPos
-	ifbit Status_Leftfacing, P0Status, P0Mirrored
+	ifbit Status1_Leftfacing, P0Status1, P0Mirrored
 	TXA
 	ADC #9
 	TAX
@@ -409,9 +425,9 @@ P0SwordDone
 P0SwordSkip
 
 P1SwordReset
-	ifbit Status_SwordThrown, P1Status, P1SwordSkip	; If sword has been thrown, don't position it with the player
+	ifbit Status1_SwordThrown, P1Status1, P1SwordSkip	; If sword has been thrown, don't position it with the player
 	LDX P1XPos
-	ifbit Status_Leftfacing, P1Status, P1Mirrored
+	ifbit Status1_Leftfacing, P1Status1, P1Mirrored
 	TXA
 	ADC #9
 	TAX
@@ -529,7 +545,7 @@ ScanLoop
 P0SkipDraw
 	TXA			; [30] + 2
 	SEC			; [32] + 2
-	SBC P0YPosFromBot	; [34] + 3
+	SBC P0YFromBot	; [34] + 3
 	ADC #15			; [37] + 2
 	BCC SkipP0		; [39] + 2 (3)
 	TAY			; [41] + 2
@@ -542,7 +558,7 @@ SkipP0				; [42]
 	SEC			; [52] + 2 // Only got here because carrry bit was cleared, so re-set it for P1SkipDraw
 P1SkipDraw			; [54]
 	TXA			; [54] + 2
-	SBC P1YPosFromBot	; [56] + 3
+	SBC P1YFromBot	; [56] + 3
 	ADC #15			; [59] + 2
 	BCC SkipP1		; [61] + 2 (3)
 	TAY			; [63] + 2
@@ -556,10 +572,10 @@ SkipP1				; [64]
 EndSkipDraw			; [76]
 
 P0Missile
-	CPX P0MissileLine	; [76] + 3
+	CPX P0SwordYFromBot	; [76] + 3
 	PHP			; [79] + 3
 P1Missile
-	CPX P1MissileLine	; [82] + 3
+	CPX P1SwordYFromBot	; [82] + 3
 	PHP			; [85] + 3
 
 				; [90]
