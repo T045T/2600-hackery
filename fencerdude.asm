@@ -619,13 +619,14 @@ StartOverscan
 	LDA #2
 	STA WSYNC
 	STA VBLANK
-	LDY #31
+	LDA #35			; 30 Lines of overscan - 30*76 / 64 = 35.something
+	STA TIM64T
 	PLA			; These are here to make sure the stack doesn't overflow
-	PLA
+	PLA			; (the pushed ENAMn values reside there)
 OverScanWait
-	STA WSYNC
-	DEY
+	LDA INTIM
 	BNE OverScanWait
+	STA WSYNC
 	JMP  MainLoop
 
 	;; Code from BattleZone ( http://www.computerarcheology.com/wiki/wiki/Atari2600/BattleZone/Code )
