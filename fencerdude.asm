@@ -112,12 +112,20 @@ P0LinesLeft 	.byte
 P0SwordYFromBot	.byte
 P0XPos 		.byte
 P0SwordX 	.byte
+P0XVel		.byte
+P0XPosBuf	.byte
+P0YVel		.byte
+P0YPosBuf	.byte
 
 P1YFromBot 	.byte
 P1LinesLeft 	.byte
 P1SwordYFromBot	.byte
 P1XPos 		.byte
 P1SwordX 	.byte
+P1XVel		.byte
+P1XPosBuf	.byte
+P1YVel		.byte
+P1YPosBuf	.byte
 
 P0Status1 	.byte
 P1Status1 	.byte
@@ -135,6 +143,7 @@ Status1_Reset = 7	;;  D7: ResetPlayer (if 1, reset Player to his edge of the scr
 
 P0Status2	.byte
 P1Status2	.byte
+Temp		.byte
 
 Status2_Stance_Debounce = 0
 
@@ -220,7 +229,6 @@ MainLoop
 	LDA #0
 	STA VSYNC
 
-
 ;;; Controls:
 ;;; Just check for each direction whether the Joystick has been pushed in that direction and manipulate
 ;;; Player coordinates accordingly. 
@@ -229,20 +237,31 @@ MainLoop
 	INC P0YFromBot
 P0SkipMoveUp
 
-	ifbit SWCHA_P0Left, SWCHA, P0SkipMoveLeft
-	setbit Status1_Leftfacing, P0Status1 
-	LDA P0XPos
-	CMP #9
-	BEQ P0SkipMoveLeft
-	DEC P0XPos
+	ifbit SWCHA_P0Left, SWCHA, P0SlowLeft
+	setbit Status1_Leftfacing, P0Status1
+	LDA #248
+	CMP P0XVel		; Is Xvel already -8?
+	BEQ P0SkipMoveLeft	; If so, don't change it
+	DEC P0XVel
+	JMP P0SkipMoveLeft
+P0SlowLeft			; If left wasn't pressed, slow down
+	LDA P0XVel
+	BPL P0SkipMoveLeft	; Only slow down until at 0
+	INC P0XVel
 P0SkipMoveLeft
 
-	ifbit SWCHA_P0Right, SWCHA, P0SkipMoveRight
+	ifbit SWCHA_P0Right, SWCHA, P0SlowRight
 	clearbit Status1_Leftfacing, P0Status1
-	LDA P0XPos
-	CMP #161
+	LDA #8
+	CMP P0XVel		; Is XVel already 8?
+	BEQ P0SkipMoveRight	; If so, we're done
+	INC P0XVel		; If not, increase it!
+	JMP P0SkipMoveRight
+P0SlowRight
+	LDA P0XVel
+	BMI P0SkipMoveRight
 	BEQ P0SkipMoveRight
-	INC P0XPos
+	DEC P0XVel
 P0SkipMoveRight
 
 	;; Now, check P1
@@ -250,22 +269,33 @@ P0SkipMoveRight
 	INC P1YFromBot
 P1SkipMoveUp
 
-	ifbit SWCHA_P1Left, SWCHA, P1SkipMoveLeft
+	ifbit SWCHA_P1Left, SWCHA, P1SlowLeft
 	setbit Status1_Leftfacing, P1Status1
-	LDA P1XPos
-	CMP #9
-	BEQ P1SkipMoveLeft
-	DEC P1XPos
+	LDA #248
+	CMP P1XVel		; Is Xvel already -8?
+	BEQ P1SkipMoveLeft	; If so, don't change it
+	DEC P1XVel
+	JMP P1SkipMoveLeft
+P1SlowLeft			; If left wasn't pressed, slow down
+	LDA P1XVel
+	BPL P1SkipMoveLeft	; Only slow down until at 0
+	INC P1XVel
 P1SkipMoveLeft
-	
-	ifbit SWCHA_P1Right, SWCHA, P1SkipMoveRight
-	clearbit Status1_Leftfacing, P1Status1
-	LDA P1XPos
-	CMP #161
-	BEQ P1SkipMoveRight
-	INC P1XPos
-P1SkipMoveRight
 
+	ifbit SWCHA_P1Right, SWCHA, P1SlowRight
+	clearbit Status1_Leftfacing, P1Status1
+	LDA #8
+	CMP P1XVel		; Is XVel already 8?
+	BEQ P1SkipMoveRight	; If so, we're done
+	INC P1XVel		; If not, increase it!
+	JMP P1SkipMoveRight
+P1SlowRight
+	LDA P1XVel
+	BMI P1SkipMoveRight
+	BEQ P1SkipMoveRight
+	DEC P1XVel
+P1SkipMoveRight
+	
 	CLC			; Clear Carry bit, so it doesn't confuse any of the following calculations
 
 	
@@ -322,6 +352,168 @@ P1ChangedStance
 P1SkipStanceSwitch
 	clearbit Status2_Stance_Debounce, P1Status2
 P1StanceSwitchDone
+
+;;; Use the Vel and PosBuf variables to calculate the new screen positions for the two players
+;;; 
+;;; Vel holds the velocity of the corresponding player in X or Y direction - the unit for velocity is 1/4 pixels
+;;; ("Pixels" meaning color clocks in X direction, Kernel units - 2 scanlines - in Y direction)
+;;; 
+;;; PosBuf holds the intermediate position value, since storing the entire position in quarter pixels would entail 16 bit arithmetic
+;;; As soon as PosBuf grows above 4 (or -4), multiples of 4 are converted to "real" pixels, added to the Pos variable,
+;;; and removed from PosBuf
+CalculatePlayerMovement
+StartP0XVel
+	CLC
+	LDA P0XPosBuf
+	ADC P0XVel
+	STA P0XPosBuf
+	CMP #0
+	BEQ EndP0XVel		; If PosBuf == 0, don't move the player
+	BPL P0XStartCalc
+P0XCheckLessThanMinus4
+	CMP #252
+	BEQ P0XStartCalc
+	BCS EndP0XVel		; If P0XPosBuf is bigger than 252 (i.e. -4), don't to anything
+P0XStartCalc
+	STA Temp		; Divide by 4 and sign extend
+	ASL 			; Store leftmost bit in Carry register
+	ROR Temp		; ROR rotates the carry register into the leftmost bit
+	LDA P0XPosBuf
+	ASL 			; Put leftmost bit back into the Carry register
+	ROR Temp		; Temp now contains the signed value of P0XPosBuf / 4
+	LDA P0XPos
+	CLC
+	ADC Temp
+	STA P0XPos
+	LDA Temp
+	ASL
+	ASL
+	STA Temp
+	LDA P0XPosBuf
+	SEC
+	SBC Temp
+	STA P0XPosBuf
+EndP0XVel
+StartP0YVel
+	CLC
+	LDA P0YPosBuf
+	ADC P0YVel
+	STA P0YPosBuf
+	CMP #0
+	BEQ EndP0YVel		; If PosBuf == 0, don't move the player
+	BPL P0YStartCalc
+P0YCheckLessThanMinus4
+	CMP #252
+	BEQ P0YStartCalc
+	BCS EndP0YVel		; If P0YPosBuf is bigger than 252 (i.e. -4), don't to anything
+P0YStartCalc
+	STA Temp		; Divide by 4 and sign extend
+	ASL 			; Store leftmost bit in Carry register
+	ROR Temp		; ROR rotates the carry register into the leftmost bit
+	LDA P0YPosBuf
+	ASL 			; Put leftmost bit back into the Carry register
+	ROR Temp		; Temp now contains the signed value of P0YPosBuf / 4
+	LDA P0YFromBot
+	CLC
+	ADC Temp
+	STA P0YFromBot
+	LDA Temp
+	ASL
+	ASL
+	STA Temp
+	LDA P0YPosBuf
+	SEC
+	SBC Temp
+	STA P0YPosBuf
+EndP0YVel
+StartP1XVel
+	CLC
+	LDA P1XPosBuf
+	ADC P1XVel
+	STA P1XPosBuf
+	CMP #0
+	BEQ EndP1XVel		; If PosBuf == 0, don't move the player
+	BPL P1XStartCalc
+P1XCheckLessThanMinus4
+	CMP #252
+	BEQ P1XStartCalc
+	BCS EndP1XVel		; If P1XPosBuf is bigger than 252 (i.e. -4), don't to anything
+P1XStartCalc
+	STA Temp		; Divide by 4 and sign extend
+	ASL 			; Store leftmost bit in Carry register
+	ROR Temp		; ROR rotates the carry register into the leftmost bit
+	LDA P1XPosBuf
+	ASL 			; Put leftmost bit back into the Carry register
+	ROR Temp		; Temp now contains the signed value of P1XPosBuf / 4
+	LDA P1XPos
+	CLC
+	ADC Temp
+	STA P1XPos
+	LDA Temp
+	ASL
+	ASL
+	STA Temp
+	LDA P1XPosBuf
+	SEC
+	SBC Temp
+	STA P1XPosBuf
+EndP1XVel
+StartP1YVel
+	CLC
+	LDA P1YPosBuf
+	ADC P1YVel
+	STA P1YPosBuf
+	CMP #0
+	BEQ EndP1YVel		; If PosBuf == 0, don't move the player
+	BPL P1YStartCalc
+P1YCheckLessThanMinus4
+	CMP #252
+	BEQ P1YStartCalc
+	BCS EndP1YVel		; If P1YPosBuf is bigger than 252 (i.e. -4), don't to anything
+P1YStartCalc
+	STA Temp		; Divide by 4 and sign extend
+	ASL 			; Store leftmost bit in Carry register
+	ROR Temp		; ROR rotates the carry register into the leftmost bit
+	LDA P1YPosBuf
+	ASL 			; Put leftmost bit back into the Carry register
+	ROR Temp		; Temp now contains the signed value of P1YPosBuf / 4
+	LDA P1YFromBot
+	CLC
+	ADC Temp
+	STA P1YFromBot
+	LDA Temp
+	ASL
+	ASL
+	STA Temp
+	LDA P1YPosBuf
+	SEC
+	SBC Temp
+	STA P1YPosBuf
+EndP1YVel
+
+	;; Make sure Players don't leave the screen edges!
+	LDA #9
+	CMP P0XPos		; If 9 < P0XPos...
+	BCC P0XRightBound	; We're good. Else...
+	STA P0XPos		; Make XPos 9
+P0XRightBound
+	LDA #161
+	CMP P0XPos
+	BCS P0BoundsDone
+	STA P0XPos
+P0BoundsDone
+	LDA #9
+	CMP P1XPos		; If 9 < P1XPos...
+	BCC P1XRightBound	; We're good. Else...
+	STA P1XPos		; Make XPos 9
+P1XRightBound
+	LDA #161
+	CMP P1XPos
+	BCS P1BoundsDone
+	STA P1XPos
+P1BoundsDone
+EndCalculatePlayerMovement
+	CLC
 	
 CheckPlayerStatus
 	LDA P0Status1		; Set reflection bit for both players according to their status byte
