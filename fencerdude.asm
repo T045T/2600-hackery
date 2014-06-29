@@ -144,6 +144,7 @@ Status1_Reset = 7	;;  D7: ResetPlayer (if 1, reset Player to his edge of the scr
 P0Status2	.byte
 P1Status2	.byte
 Temp		.byte
+LongTemp	.word		;used as the second part of a 16bit address when we need to temporarily store one!
 
 Status2_Stance_Debounce = 0
 
@@ -229,6 +230,64 @@ MainLoop
 	LDA #0
 	STA VSYNC
 
+P0Gravity
+	ifbit Status1_Jumping, P0Status1, P0GravityDone ; If Player is jumping, do not fall!
+	LDA P0XPos
+	DEY
+	JSR CheckPFPixel	; Is there a Playfield pixel one scanline below the player?
+	LDA P0YFromBot
+	CLC
+	SBC #14
+	TAY
+	LDA (LongTemp),Y
+	BIT Temp
+	BNE P0NoFall		; If so, there's ground, don't fall.
+	DEC P0YVel		; If not, increase falling speed
+	JMP P0GravityDone
+P0NoFall
+	LDA #0
+	STA P0YVel		; We hit some sort of ground, stop moving down
+P0Rise
+	LDA P0YFromBot
+	CLC
+	SBC #13
+	TAY
+	LDA (LongTemp),Y
+	BIT Temp
+	BEQ P0GravityDone	; If not, we're done
+	INC P0YFromBot		; If so, raise player by one scanline
+	JMP P0Rise		;
+P0GravityDone
+P1Gravity
+	ifbit Status1_Jumping, P1Status1, P1GravityDone ; If Player is jumping, do not fall!
+	LDA P1XPos
+	DEY
+	JSR CheckPFPixel	; Is there a Playfield pixel one scanline below the player?
+	LDA P1YFromBot
+	CLC
+	SBC #14
+	TAY
+	LDA (LongTemp),Y
+	BIT Temp
+	BNE P1NoFall		; If so, there's ground, don't fall.
+	DEC P1YVel		; If not, increase falling speed
+	JMP P1GravityDone
+P1NoFall
+	LDA #0
+	STA P1YVel		; We hit some sort of ground, stop moving down
+P1Rise
+	LDA P1YFromBot
+	CLC
+	SBC #13
+	TAY
+	LDA (LongTemp),Y
+	BIT Temp
+	BEQ P1GravityDone	; If not, we're done
+	INC P1YFromBot		; If so, raise player by one scanline
+	JMP P1Rise		;
+P1GravityDone
+	CLC
+	
 ;;; Controls:
 ;;; Just check for each direction whether the Joystick has been pushed in that direction and manipulate
 ;;; Player coordinates accordingly. 
@@ -892,8 +951,95 @@ MissilePositionOk
 	STA HMM0,X
 	STA    WSYNC             ;
 	RTS                      ; done, that's all!
+
+;;; Checks whether a given playfield location contains a pixel.
+;;; Input:
+;;; A : X coordinate of the playfield location
+;;;
+;;; Output:
+;;; Pixel Mask in Temp, Pointer to the Correct Playfield Sprite in LongTemp
+CheckPFPixel SUBROUTINE
+	LSR
+	LSR			; divide X coordinate by 4 - playfield pixels are 4 Color Clocks wide
+	TAX
+	LDY PFBitIndices,X
+	INY
+	LDA #0
+	SEC
+ShiftLoop
+	ROL			; Rotate A left by 1 - in the first iteration, the set Carry bit gets rotated to bit 0
+	DEY			; Decrease Y (the bit index)
+	BEQ RotationDone	; RotationDone
+	JMP ShiftLoop		; Loop until Y = 0 => rotate a single 1 into the right place to be used as a bitmask for BIT
+RotationDone
+	STA Temp		; Bit mask goes into Temp
+	TXA
+	LSR
+	LSR			; divide by 4 again to determine the playfield register id
+	TAX
+	LDA PFRegisterIndices,X	; Load the Zero-Page address of the correct PF Sprite pointer into A
+	TAX
+	LDA #0,X		; Load the location of the current Sprite (LSB) into A
+	STA LongTemp		; Store into LongTemp so we can use Zero Page Indirect addressing mode
+	INX
+	LDA #0,X		; Load the MSB into A
+	STA LongTemp + 1	; Store MSB into LongTemp + 1
+	RTS
 	
 	org $FD00
+PFRegisterIndices
+	.byte PF0Base			; 1
+	.byte PF1Base			; 2
+	.byte PF1Base			; 3
+	.byte PF2Base			; 4
+	.byte PF2Base			; 5
+	.byte PF2Base			; 6
+	.byte PF2Base			; 7
+	.byte PF1Base			; 8
+	.byte PF1Base			; 9
+	.byte PF0Base			; 10
+	
+PFBitIndices
+	.byte 4 		; 1
+	.byte 5 		; 2
+	.byte 6 		; 3
+	.byte 7 		; 4
+	.byte 7 		; 5
+	.byte 6 		; 6
+	.byte 5 		; 7
+	.byte 4 		; 8
+	.byte 3 		; 9
+	.byte 2 		; 10
+	.byte 1 		; 11
+	.byte 0 		; 12
+	.byte 0 		; 13
+	.byte 1 		; 14
+	.byte 2 		; 15
+	.byte 3 		; 16
+	.byte 4 		; 17
+	.byte 5 		; 18
+	.byte 6 		; 19
+	.byte 7 		; 20
+	.byte 7 		; 21
+	.byte 6 		; 22
+	.byte 5 		; 23
+	.byte 4 		; 24
+	.byte 3 		; 25
+	.byte 2 		; 26
+	.byte 1 		; 27
+	.byte 0 		; 28
+	.byte 0 		; 29
+	.byte 1 		; 30
+	.byte 2 		; 31
+	.byte 3 		; 32
+	.byte 4 		; 33
+	.byte 5 		; 34
+	.byte 6 		; 35
+	.byte 7 		; 36
+	.byte 6 		; 37
+	.byte 5 		; 38
+	.byte 4 		; 39
+	.byte 0 		; 40
 FencerLow ; 14 Lines - Upside-Down because it's easier to draw that way
 	.byte %00000000
 	.byte %00100100  ;  X  X  ;
