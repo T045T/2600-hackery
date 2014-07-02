@@ -234,7 +234,6 @@ MainLoop
 	STA VSYNC
 
 P0Gravity
-	ifbit Status1_Jumping, P0Status1, P0GravityDone ; If Player is jumping, do not fall!
 	LDA P0XPos
 	DEY
 	JSR CheckPFPixel	; Is there a Playfield pixel one scanline below the player?
@@ -250,6 +249,7 @@ P0Gravity
 P0NoFall
 	LDA #0
 	STA P0YVel		; We hit some sort of ground, stop moving down
+	clearbit Status1_Jumping, P0Status1
 P0Rise
 	LDA P0YFromBot
 	CLC
@@ -262,7 +262,6 @@ P0Rise
 	JMP P0Rise		;
 P0GravityDone
 P1Gravity
-	ifbit Status1_Jumping, P1Status1, P1GravityDone ; If Player is jumping, do not fall!
 	LDA P1XPos
 	DEY
 	JSR CheckPFPixel	; Is there a Playfield pixel one scanline below the player?
@@ -278,6 +277,7 @@ P1Gravity
 P1NoFall
 	LDA #0
 	STA P1YVel		; We hit some sort of ground, stop moving down
+	clearbit Status1_Jumping, P1Status1
 P1Rise
 	LDA P1YFromBot
 	CLC
@@ -296,14 +296,11 @@ P1GravityDone
 ;;; Player coordinates accordingly. 
 
 	ifbit SWCHA_P0Up, SWCHA, P0SkipMoveUp ; Bits for pushed directions in SWCHA are *un*set
-	ifbit Status2_Jump_Debounce, P0Status2, P0MoveUpDone
+	ifbit Status1_Jumping, P0Status1, P0SkipMoveUp
 	LDA #JUMP_HEIGHT
 	STA P0YVel
-	setbit Status2_Jump_Debounce, P0Status2
-	JMP P0MoveUpDone
+	setbit Status1_Jumping, P0Status1
 P0SkipMoveUp
-	clearbit Status2_Jump_Debounce, P0Status2
-P0MoveUpDone
 
 	ifbit SWCHA_P0Left, SWCHA, P0SlowLeft
 	setbit Status1_Leftfacing, P0Status1
@@ -334,14 +331,11 @@ P0SkipMoveRight
 
 	;; Now, check P1
 	ifbit SWCHA_P1Up, SWCHA, P1SkipMoveUp
-	ifbit Status2_Jump_Debounce, P1Status2, P1MoveUpDone
+	ifbit Status1_Jumping, P1Status1, P1SkipMoveUp
 	LDA #JUMP_HEIGHT
 	STA P1YVel
-	setbit Status2_Jump_Debounce, P1Status2
-	JMP P1MoveUpDone
+	setbit Status1_Jumping, P1Status1
 P1SkipMoveUp
-	clearbit Status2_Jump_Debounce, P1Status2
-P1MoveUpDone
 
 	ifbit SWCHA_P1Left, SWCHA, P1SlowLeft
 	setbit Status1_Leftfacing, P1Status1
@@ -595,6 +589,7 @@ CheckPlayerStatus
 	LDA P1Status1
 	STA REFP1
 P0PosStart
+	ifbit Status1_Jumping, P0Status1, P0Jumping
 	ifbit Status1_MidStance, P0Status1, P0MidPos
 	ifbit Status1_HighStance, P0Status1, P0HighPos
 P0LowPos
@@ -625,7 +620,17 @@ P0PosDone
 	ifbit Status1_SwordThrown, P0Status1, P1PosStart	   ; If the sword has been thrown, skip. Otherwise...
 	STX P0SwordYFromBot				   ; set it to the appropriate line
 	CLC
+	JMP P1PosStart
+P0Jumping
+	LDX #<FencerJump
+	STX P0Sprite
+	LDX #>FencerJump
+	STX P0Sprite+1
+	ifbit Status1_SwordThrown, P0Status1, P1PosStart
+	LDX #255
+	STX P0SwordYFromBot
 P1PosStart
+	ifbit Status1_Jumping, P1Status1, P1Jumping
 	ifbit Status1_MidStance, P1Status1, P1MidPos
 	ifbit Status1_HighStance, P1Status1, P1HighPos
 P1LowPos
@@ -656,7 +661,15 @@ P1PosDone
 	ifbit Status1_SwordThrown, P1Status1, P0Reset        ; If the sword has been thrown, skip. Otherwise...
 	STX P1SwordYFromBot				   ; set it to the appropriate line
 	CLC
-
+	JMP P0Reset
+P1Jumping
+	LDX #<FencerJump
+	STX P1Sprite
+	LDX #>FencerJump
+	STX P1Sprite+1
+	ifbit Status1_SwordThrown, P1Status1, P0Reset
+	LDX #255
+	STX P1SwordYFromBot
 P0Reset
 	unlessbit Status1_Reset, P0Status1, P0ResetDone
 	LDA #P0InitialX
@@ -1117,6 +1130,23 @@ FencerMid
 	.byte %10100000  ;X X     ;
 	.byte %10110000  ;X XX    ;
 	.byte %10110000  ;X XX    ;
+
+FencerJump
+	.byte %00000000
+	.byte %00011000  ;   XX   ;
+	.byte %01111110  ; XXXXXX ;
+	.byte %11111111  ;XXXXXXXX;
+	.byte %11111111  ;XXXXXXXX;
+	.byte %01111110  ; XXXXXX ;
+	.byte %00011000  ;   XX   ;
+	.byte %00000000  ;        ;
+	.byte %00000000  ;        ;
+	.byte %00000000  ;        ;
+	.byte %00000000  ;        ;
+	.byte %00000000  ;        ;
+	.byte %00000000  ;        ;
+	.byte %00000000  ;        ;
+	.byte %00000000  ;        ;
 
 PF0Center
 	.byte %11111111
