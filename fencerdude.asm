@@ -1135,12 +1135,12 @@ FencerJump
 	.byte %00000000
 	.byte %00011000  ;   XX   ;
 	.byte %01111110  ; XXXXXX ;
+	.byte %01111110  ; XXXXXX ;
 	.byte %11111111  ;XXXXXXXX;
 	.byte %11111111  ;XXXXXXXX;
 	.byte %01111110  ; XXXXXX ;
+	.byte %01111110  ; XXXXXX ;
 	.byte %00011000  ;   XX   ;
-	.byte %00000000  ;        ;
-	.byte %00000000  ;        ;
 	.byte %00000000  ;        ;
 	.byte %00000000  ;        ;
 	.byte %00000000  ;        ;
