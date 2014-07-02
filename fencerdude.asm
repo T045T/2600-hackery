@@ -104,6 +104,8 @@ LowSwordOffset = 8
 MidSwordOffset = 4
 HighSwordOffset = 0
 
+JUMP_HEIGHT = 14
+	
 P0InitialX = 16
 P1InitialX = 144
 	
@@ -147,6 +149,7 @@ Temp		.byte
 LongTemp	.word		;used as the second part of a 16bit address when we need to temporarily store one!
 
 Status2_Stance_Debounce = 0
+Status2_Jump_Debounce = 1
 
 
 ;;; Graphics variables
@@ -293,8 +296,14 @@ P1GravityDone
 ;;; Player coordinates accordingly. 
 
 	ifbit SWCHA_P0Up, SWCHA, P0SkipMoveUp ; Bits for pushed directions in SWCHA are *un*set
-	INC P0YFromBot
+	ifbit Status2_Jump_Debounce, P0Status2, P0MoveUpDone
+	LDA #JUMP_HEIGHT
+	STA P0YVel
+	setbit Status2_Jump_Debounce, P0Status2
+	JMP P0MoveUpDone
 P0SkipMoveUp
+	clearbit Status2_Jump_Debounce, P0Status2
+P0MoveUpDone
 
 	ifbit SWCHA_P0Left, SWCHA, P0SlowLeft
 	setbit Status1_Leftfacing, P0Status1
@@ -325,8 +334,14 @@ P0SkipMoveRight
 
 	;; Now, check P1
 	ifbit SWCHA_P1Up, SWCHA, P1SkipMoveUp
-	INC P1YFromBot
+	ifbit Status2_Jump_Debounce, P1Status2, P1MoveUpDone
+	LDA #JUMP_HEIGHT
+	STA P1YVel
+	setbit Status2_Jump_Debounce, P1Status2
+	JMP P1MoveUpDone
 P1SkipMoveUp
+	clearbit Status2_Jump_Debounce, P1Status2
+P1MoveUpDone
 
 	ifbit SWCHA_P1Left, SWCHA, P1SlowLeft
 	setbit Status1_Leftfacing, P1Status1
@@ -896,6 +911,18 @@ OverScanWait
 	STA WSYNC
 	JMP  MainLoop
 
+;;; Collision code goes here (should go with control code actually, so that there's no stuttering)
+;;;   Maybe move control code down here?
+;;; Basic idea: (P0XPos - 9) >> 2 => Playfield pixel position (same for P0XPos - 1 and P1XPos)
+;;; Build table(s) with bit indices (2x40 Bytes)
+;;; Another set of tables with PF memory locations (2x10 Bytes), addressed by
+;;; playfield pixel pos >> 2 (flexible enough for both reflected and unreflected) 
+;;; ==> Fetch data from Playfield memory (at P0YFromBot - 1)
+
+;;; TODO(nberg): introduce velocity and use that, should make it relatively easy to deal with collisions
+;;;              both due to input and physics (also, sliding!)
+
+	
 	;; Code from BattleZone ( http://www.computerarcheology.com/wiki/wiki/Atari2600/BattleZone/Code )
 	;; Commented Version from http://www.qotile.net/minidig/disassembly/unfinished.zip
 	;;
