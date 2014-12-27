@@ -1094,10 +1094,10 @@ PFBitIndices
 	.byte 5 		; 34
 	.byte 6 		; 35
 	.byte 7 		; 36
-	.byte 6 		; 37
-	.byte 5 		; 38
-	.byte 4 		; 39
-	.byte 0 		; 40
+	.byte 7 		; 37
+	.byte 6 		; 38
+	.byte 5 		; 39
+	.byte 4 		; 40
 FencerLow ; 14 Lines - Upside-Down because it's easier to draw that way
 	.byte %00000000
 	.byte %00100100  ;  X  X  ;
