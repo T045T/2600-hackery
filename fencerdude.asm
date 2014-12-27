@@ -1018,11 +1018,11 @@ CheckPFPixel SUBROUTINE
 	LSR
 	LSR			; divide X coordinate by 4 - playfield pixels are 4 Color Clocks wide
 	TAX
-	LDY PFBitIndices,X
+	LDY PFBitIndices,X      ; Get the bit index for the playfield pixel we're looking at
 	INY
 	LDA #0
 	SEC
-ShiftLoop
+ShiftLoop                       ; LOOP: Put the mask bit in the right place
 	ROL			; Rotate A left by 1 - in the first iteration, the set Carry bit gets rotated to bit 0
 	DEY			; Decrease Y (the bit index)
 	BEQ RotationDone	; RotationDone
@@ -1054,7 +1054,9 @@ PFRegisterIndices
 	.byte PF1Base			; 8
 	.byte PF1Base			; 9
 	.byte PF0Base			; 10
-	
+
+;;; The bit indices of the 40 Playfield pixels. Since the Playfield is stored in multiple registers,
+;;; the indices are weird
 PFBitIndices
 	.byte 4 		; 1
 	.byte 5 		; 2
