@@ -778,13 +778,20 @@ PositionM1
 	LDA #>PF2Center
 	STA PF2Base+1
 
-
-	LDY #0
+;;; Load playfield register values for the first line
+	LDY #95			; Halved because we're now using a two-line kernel
+	STY CurrentLine
+        LDA (PF0Base),Y
+        STA PF0
+        LDA (PF1Base),Y
+        STA PF1Next
+        LDA (PF2Base),Y
+        STA PF2
+        LDA #0                  ; Set A and Y to 0, since were never ever going to draw the swords
+        TAY                     ; in the very first line
 WaitForVblankEnd
 	LDA INTIM
 	BNE WaitForVblankEnd
-	LDX #95			; Halved because we're now using a two-line kernel
-	STX CurrentLine
 	STA WSYNC
 	STA VBLANK
 
