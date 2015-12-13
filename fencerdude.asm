@@ -439,12 +439,11 @@ StartP0XVel
         LDA P0XPosBuf
         ADC P0XVel
         STA P0XPosBuf
-        CMP #0
-        BEQ EndP0XVel           ; If PosBuf == 0, don't move the player
-        BPL P0XStartCalc
+        CMP #4
+        BCS P0XStartCalc        ; If P0XPosBuf >= 4, calculate stuff
 P0XCheckLessThanMinus4
         CMP #252
-        BEQ P0XStartCalc
+        BEQ P0XStartCalc        ; If P0XPosBuf is exactly -4 (252 unsigned), calculate stuff
         BCS EndP0XVel           ; If P0XPosBuf is bigger than 252 (i.e. -4), don't to anything
 P0XStartCalc
         STA Temp                ; Divide by 4 and sign extend
@@ -503,12 +502,11 @@ StartP1XVel
         LDA P1XPosBuf
         ADC P1XVel
         STA P1XPosBuf
-        CMP #0
-        BEQ EndP1XVel           ; If PosBuf == 0, don't move the player
-        BPL P1XStartCalc
+        CMP #4
+        BCS P1XStartCalc        ; If P1XPosBuf >= 4, calculate stuff
 P1XCheckLessThanMinus4
         CMP #252
-        BEQ P1XStartCalc
+        BEQ P1XStartCalc        ; If P1XPosBuf is exactly -4 (252 unsigned), calculate stuff
         BCS EndP1XVel           ; If P1XPosBuf is bigger than 252 (i.e. -4), don't to anything
 P1XStartCalc
         STA Temp                ; Divide by 4 and sign extend
