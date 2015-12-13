@@ -1008,6 +1008,12 @@ MissilePositionOk
 ;;; Output:
 ;;; Pixel Mask in Temp, Pointer to the Correct Playfield Sprite in LongTemp
 CheckPFPixel SUBROUTINE
+        ;; P[0,1]XPos is 2 more than we expect - since PosPlayer and PosMissile
+        ;; take coordinates between 9 and 161, but we want zero-based indices for
+        ;; the 160 possible X values, hence the coordinates we're working with in
+        ;; here should be between 7 and 159, hence we subtract 2
+        SBC #2
+
         LSR
         LSR                     ; divide X coordinate by 4 - playfield pixels are 4 Color Clocks wide
         TAX
