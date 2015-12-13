@@ -1011,16 +1011,7 @@ CheckPFPixel SUBROUTINE
         LSR
         LSR                     ; divide X coordinate by 4 - playfield pixels are 4 Color Clocks wide
         TAX
-        LDY PFBitIndices,X      ; Get the bit index for the playfield pixel we're looking at
-        INY
-        LDA #0
-        SEC
-ShiftLoop                       ; LOOP: Put the mask bit in the right place
-        ROL                     ; Rotate A left by 1 - in the first iteration, the set Carry bit gets rotated to bit 0
-        DEY                     ; Decrease Y (the bit index)
-        BEQ RotationDone        ; RotationDone
-        JMP ShiftLoop           ; Loop until Y = 0 => rotate a single 1 into the right place to be used as a bitmask for BIT
-RotationDone
+        LDA PFBitMasks,X      ; Get the bit mask for the playfield pixel we're looking at
         STA Temp                ; Bit mask goes into Temp
         TXA
         LSR
@@ -1054,47 +1045,48 @@ PFRegisterIndices
 
 ;;; The bit indices of the 40 Playfield pixels. Since the Playfield is stored in multiple registers,
 ;;; the indices are weird
-PFBitIndices
-        .byte 4                 ; 1
-        .byte 5                 ; 2
-        .byte 6                 ; 3
-        .byte 7                 ; 4
-        .byte 7                 ; 5
-        .byte 6                 ; 6
-        .byte 5                 ; 7
-        .byte 4                 ; 8
-        .byte 3                 ; 9
-        .byte 2                 ; 10
-        .byte 1                 ; 11
-        .byte 0                 ; 12
-        .byte 0                 ; 13
-        .byte 1                 ; 14
-        .byte 2                 ; 15
-        .byte 3                 ; 16
-        .byte 4                 ; 17
-        .byte 5                 ; 18
-        .byte 6                 ; 19
-        .byte 7                 ; 20
-        .byte 7                 ; 21
-        .byte 6                 ; 22
-        .byte 5                 ; 23
-        .byte 4                 ; 24
-        .byte 3                 ; 25
-        .byte 2                 ; 26
-        .byte 1                 ; 27
-        .byte 0                 ; 28
-        .byte 0                 ; 29
-        .byte 1                 ; 30
-        .byte 2                 ; 31
-        .byte 3                 ; 32
-        .byte 4                 ; 33
-        .byte 5                 ; 34
-        .byte 6                 ; 35
-        .byte 7                 ; 36
-        .byte 7                 ; 37
-        .byte 6                 ; 38
-        .byte 5                 ; 39
-        .byte 4                 ; 40
+PFBitMasks
+        .byte %00010000        ; 1
+        .byte %00100000        ; 2
+        .byte %01000000        ; 3
+        .byte %10000000        ; 4
+        .byte %10000000        ; 5
+        .byte %01000000        ; 6
+        .byte %00100000        ; 7
+        .byte %00010000        ; 8
+        .byte %00001000        ; 9
+        .byte %00000100        ; 10
+        .byte %00000010        ; 11
+        .byte %00000001        ; 12
+        .byte %00000001        ; 13
+        .byte %00000010        ; 14
+        .byte %00000100        ; 15
+        .byte %00001000        ; 16
+        .byte %00010000        ; 17
+        .byte %00100000        ; 18
+        .byte %01000000        ; 19
+        .byte %10000000        ; 20
+        .byte %10000000        ; 21
+        .byte %01000000        ; 22
+        .byte %00100000        ; 23
+        .byte %00010000        ; 24
+        .byte %00001000        ; 25
+        .byte %00000100        ; 26
+        .byte %00000010        ; 27
+        .byte %00000001        ; 28
+        .byte %00000001        ; 29
+        .byte %00000010        ; 30
+        .byte %00000100        ; 31
+        .byte %00001000        ; 32
+        .byte %00010000        ; 33
+        .byte %00100000        ; 34
+        .byte %01000000        ; 35
+        .byte %10000000        ; 36
+        .byte %10000000        ; 37
+        .byte %01000000        ; 38
+        .byte %00100000        ; 39
+        .byte %00010000        ; 40
+
 FencerLow ; 14 Lines - Upside-Down because it's easier to draw that way
         .byte %00000000
         .byte %00100100  ;  X  X  ;
