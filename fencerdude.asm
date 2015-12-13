@@ -241,9 +241,9 @@ P0Gravity
 	CLC
 	SBC #14
 	TAY
-	LDA (LongTemp),Y
-	BIT Temp
-	BNE P0NoFall		; If so, there's ground, don't fall.
+	LDA (LongTemp),Y        ; Longtemp contains the base address of the current playfield sprite
+	BIT Temp                ; Check the bit our player is above for a collision
+	BNE P0NoFall		; If there is one, there's ground, don't fall.
 	DEC P0YVel		; If not, increase falling speed
 	JMP P0GravityDone
 P0NoFall
@@ -951,6 +951,11 @@ OverScanWait
 ;;; TODO(nberg): introduce velocity and use that, should make it relatively easy to deal with collisions
 ;;;              both due to input and physics (also, sliding!)
 
+;;; Subroutine to check inputs
+;;; Inputs: X = player ID (0 or 1) - used as an offset to all parameters that change
+;;;         Temp = the 4 control bits (up, down, left, right) for the given player
+;;; TODO(nberg): Check that the layout of status bytes and other memory supports using an offset to switch
+;;;              between players!
 	
 	;; Code from BattleZone ( http://www.computerarcheology.com/wiki/wiki/Atari2600/BattleZone/Code )
 	;; Commented Version from http://www.qotile.net/minidig/disassembly/unfinished.zip
@@ -1041,7 +1046,11 @@ RotationDone
 	LDA #0,X		; Load the MSB into A
 	STA LongTemp + 1	; Store MSB into LongTemp + 1
 	RTS
-	
+
+
+        ;;; Output remaining ROM space
+        echo "------", [$FFFA - *]d, "bytes between End of Code and End of Cartridge"
+
 	org $FD00
 PFRegisterIndices
 	.byte PF0Base			; 1
@@ -1461,6 +1470,10 @@ PF2Center
 	.byte %00000000
 	.byte %00000000
 
+;;; Output remaining ROM space
+        echo "------", [$FFFA - *]d, "bytes between End of Sprites and End of Cartridge"
+
+;;; Bureaucracy!
 	org $FFFC
 	.word Start		; NMI
 	.word Start		; RESET
