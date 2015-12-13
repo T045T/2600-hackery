@@ -1001,7 +1001,7 @@ MissilePositionOk
         STA    WSYNC             ;
         RTS                      ; done, that's all!
 
-;;; Checks whether a given playfield location contains a pixel.
+;;; Fetches the bit mask and sprite pointer for a given playfield location.
 ;;; Input:
 ;;; A : X coordinate of the playfield location
 ;;;
