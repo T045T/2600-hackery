@@ -943,9 +943,6 @@ OverScanWait
 ;;; playfield pixel pos >> 2 (flexible enough for both reflected and unreflected) 
 ;;; ==> Fetch data from Playfield memory (at P0YFromBot - 1)
 
-;;; TODO(nberg): introduce velocity and use that, should make it relatively easy to deal with collisions
-;;;              both due to input and physics (also, sliding!)
-
 ;;; Subroutine to check inputs
 ;;; Inputs: X = player ID (0 or 1) - used as an offset to all parameters that change
 ;;;         Temp = the 4 control bits (up, down, left, right) for the given player
