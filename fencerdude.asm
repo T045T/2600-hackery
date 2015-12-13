@@ -235,7 +235,6 @@ MainLoop
 
 P0Gravity
         LDA P0XPos
-        DEY
         JSR CheckPFPixel        ; Is there a Playfield pixel one scanline below the player?
         LDA P0YFromBot
         CLC
@@ -263,7 +262,6 @@ P0Rise
 P0GravityDone
 P1Gravity
         LDA P1XPos
-        DEY
         JSR CheckPFPixel        ; Is there a Playfield pixel one scanline below the player?
         LDA P1YFromBot
         CLC
