@@ -304,9 +304,6 @@ P0SkipMoveUp
 
 	ifbit SWCHA_P0Left, SWCHA, P0SlowLeft
 	setbit Status1_Leftfacing, P0Status1
-	LDA P0YVel
-	BEQ P0MoveLeft
-	BPL P0SkipMoveLeft
 P0MoveLeft
 	LDA #248
 	CMP P0XVel		; Is Xvel already -8?
@@ -321,9 +318,6 @@ P0SkipMoveLeft
 
 	ifbit SWCHA_P0Right, SWCHA, P0SlowRight
 	clearbit Status1_Leftfacing, P0Status1
-	LDA P0YVel
-	BEQ P0MoveRight
-	BPL P0SkipMoveRight
 P0MoveRight
 	LDA #8
 	CMP P0XVel		; Is XVel already 8?
@@ -347,9 +341,6 @@ P1SkipMoveUp
 
 	ifbit SWCHA_P1Left, SWCHA, P1SlowLeft
 	setbit Status1_Leftfacing, P1Status1
-	LDA P1YVel
-	BEQ P1MoveLeft
-	BPL P1SkipMoveLeft
 P1MoveLeft
 	LDA #248
 	CMP P1XVel		; Is Xvel already -8?
@@ -364,9 +355,6 @@ P1SkipMoveLeft
 
 	ifbit SWCHA_P1Right, SWCHA, P1SlowRight
 	clearbit Status1_Leftfacing, P1Status1
-	LDA P1YVel
-	BEQ P1MoveRight
-	BPL P1SkipMoveRight
 P1MoveRight
 	LDA #8
 	CMP P1XVel		; Is XVel already 8?
